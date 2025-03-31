@@ -78,7 +78,10 @@ RUN if [ ! -z "${GF_INSTALL_PLUGINS}" ]; then \
 
 #add persistent volume so the container doesnt need to
 VOLUME /var/lib/grafana
-COPY configs/grafana.ini /etc/grafana/grafana.ini
+VOLUME /usr/share/grafana
+VOLUME /var/lib/grafana/plugins
+#VOLUME 
+#COPY configs/grafana.ini /etc/grafana/grafana.ini
 
 EXPOSE 3000
 # go to the custom directory
