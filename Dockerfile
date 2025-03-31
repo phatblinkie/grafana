@@ -1,6 +1,6 @@
 ARG GRAFANA_VERSION="11.6.0"
 
-FROM grafana/grafana-oss:${GRAFANA_VERSION}
+FROM docker.io/grafana/grafana-oss:${GRAFANA_VERSION}
 
 ARG GF_INSTALL_IMAGE_RENDERER_PLUGIN="false"
 
@@ -80,7 +80,7 @@ RUN if [ ! -z "${GF_INSTALL_PLUGINS}" ]; then \
 VOLUME /var/lib/grafana
 COPY configs/grafana.ini /etc/grafana/grafana.ini
 
-
+EXPOSE 3000
 # go to the custom directory
 #cd packaging/docker/custom
 
