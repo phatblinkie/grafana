@@ -54,6 +54,24 @@
         forward_to = [prometheus.remote_write.mimir_host.receiver]
       }
 
+      // New Loki configuration
+      loki.write "loki_host" {
+        endpoint {
+          url = "http://192.168.10.171:3100/loki/api/v1/push"
+        }
+      }
+
+
+      loki.source.journal "journal_logs" {
+        forward_to = [loki.write.loki_host.receiver]
+
+        labels = {
+          job  = "journal",
+          host = env("HOSTNAME"), // This will use the system's hostname
+        }
+      }
+
+
   tasks:
     - name: Download Grafana Alloy RPM
       ansible.builtin.get_url:
