@@ -1,0 +1,144 @@
+---
+- name: Install and configure Grafana Alloy on Windows
+  hosts: win_hosts
+  gather_facts: yes
+  vars:
+    alloy_version: "1.7.5"
+    alloy_installer_url: "https://github.com/grafana/alloy/releases/download/v1.7.5/alloy-installer-windows-amd64.exe.zip"
+    alloy_install_dir: "C:\\Program Files\\GrafanaLabs\\Alloy"
+    alloy_config_path: "C:\\Program Files\\GrafanaLabs\\Alloy\\config.alloy"
+    alloy_service_name: "alloy"
+    alloy_config_content: |
+      logging {
+        level = "info"
+      }
+
+      prometheus.remote_write "mimir_host" {
+        endpoint {
+          url = "http://192.168.10.171:9009/api/v1/push"
+        }
+      }
+
+      prometheus.exporter.windows "localhost" {
+        enabled_collectors = [
+          "cpu",
+          "cs",
+          "logical_disk",
+          "net",
+          "os",
+          "service",
+          "system",
+          "textfile",
+          "logon",
+          "memory",
+          "thermalzone",
+          "textfile",
+        ]
+      }
+
+      prometheus.scrape "windows_metrics" {
+        targets    = prometheus.exporter.windows.localhost.targets
+        forward_to = [prometheus.remote_write.mimir_host.receiver]
+      }
+
+      loki.write "remote_loki" {
+        endpoint {
+          url = "http://192.168.10.171:3100/loki/api/v1/push"
+        }
+      }
+
+      loki.relabel "windows_mapping" {
+        forward_to = [loki.write.remote_loki.receiver]
+        rule {
+          source_labels = ["computer"]
+          target_label  = "agent_hostname"
+        }
+      }
+
+      loki.process "parse_eventlog" {
+        forward_to = [
+          loki.relabel.windows_mapping.receiver,
+        ]
+
+        stage.json {
+          expressions = {
+            "source"  = "source",
+          }
+        }
+
+        stage.labels {
+          values = {
+            "source"  = "source",
+          }
+        }
+      }
+
+      loki.source.windowsevent "system" {
+        forward_to = [
+          loki.process.parse_eventlog.receiver,
+        ]
+        eventlog_name = "System"
+      }
+
+      loki.source.windowsevent "application" {
+        forward_to = [
+          loki.process.parse_eventlog.receiver,
+        ]
+        eventlog_name = "Application"
+      }
+
+  tasks:
+    - name: Check if Alloy is already installed
+      win_stat:
+        path: "{{ alloy_install_dir }}\\alloy.exe"
+      register: alloy_installed
+
+   # - name: Create installation directory if needed
+   #   win_file:
+   #     path: "{{ alloy_install_dir }}"
+   #     state: directory
+   #   when: not alloy_installed.stat.exists
+
+    - name: Download Grafana Alloy installer
+      win_get_url:
+        url: "{{ alloy_installer_url }}"
+        dest: "C:\\Windows\\Temp\\alloy-installer-{{ alloy_version }}.zip"
+      when: not alloy_installed.stat.exists
+
+    - name: Extract installer
+      win_unzip:
+        src: "C:\\Windows\\Temp\\alloy-installer-{{ alloy_version }}.zip"
+        dest: "C:\\Windows\\Temp"
+        creates: "C:\\Windows\\Temp\\alloy-installer-windows-amd64.exe"
+      when: not alloy_installed.stat.exists
+
+    - name: Install Alloy silently to correct path
+      win_command: "C:\\Windows\\Temp\\alloy-installer-windows-amd64.exe /S"
+      args:
+        creates: "{{ alloy_install_dir }}\\alloy.exe"
+      when: not alloy_installed.stat.exists
+
+    - name: Create config file
+      win_copy:
+        dest: "{{ alloy_config_path }}"
+        content: "{{ alloy_config_content }}"
+        force: yes
+
+    - name: Ensure Alloy service is running, and restart so it gets the configuration change
+      win_service:
+        name: "{{ alloy_service_name }}"
+        state: restarted
+        start_mode: auto
+
+    - name: Clean up installer files
+      block:
+        - name: Remove installer zip
+          win_file:
+            path: "C:\\Windows\\Temp\\alloy-installer-{{ alloy_version }}.zip"
+            state: absent
+
+        - name: Remove extracted installer
+          win_file:
+            path: "C:\\Windows\\Temp\\alloy-installer-windows-amd64.exe"
+            state: absent
+      when: not alloy_installed.stat.exists
