@@ -1,12 +1,12 @@
 # dashboards.yaml
 apiVersion: 1
 providers:
-- name: 'default'
+- name: 'file_dashboards'
   orgId: 1
   folder: 'samples'  # Dashboard folder name
   type: file
   disableDeletion: false  # Prevents users from deleting preloaded dashboards
   updateIntervalSeconds: 30  # How often Grafana checks for updates
   options:
-    path: /etc/grafana/provisioning/dashboards  # Path where dashboards are stored
+    path: /var/lib/grafana/dashboards  # Path where dashboards are stored
 

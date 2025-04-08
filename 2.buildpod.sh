@@ -10,25 +10,20 @@ cp mimir/config.yml ~/container_storage_data/mimirconfigs/
 chmod -v 0755 ~/container_storage_data/mimirconfigs
 chmod -v 0644 ~/container_storage_data/mimirconfigs/config.yml
 
-mkdir -v -p ~/container_storage_data/grafana
-chmod -v 0777 ~/container_storage_data/grafana
+mkdir -v -p ~/container_storage_data/grafana/{provisioning,dashboards}
+cp -v grafana/sample_dashboards/*.yml ~/container_storage_data/grafana/provisioning/
+chmod -v 0777 /home/admin/container_storage_data/grafana
+chmod -v 0777 ~/container_storage_data/grafana/{provisioning,dashboards}
+chmod -v 0666 ~/container_storage_data/grafana/provisioning/*.yml
 
-mkdir -v -p ~/container_storage_data/grafana/provisioning
-chmod -v 0777 ~/container_storage_data/grafana/provisioning
 cp -v grafana/datasources.yaml ~/container_storage_data/grafana/provisioning/
 chmod -v 0666 ~/container_storage_data/grafana/provisioning/datasources.yaml
 
-mkdir -v -p ~/container_storage_data/grafana/sample_dashboards
-mkdir -v -p ~/container_storage_data/grafana/grafana-dashboard-provisioning
-cp -v grafana/sample_dashboards/*.json ~/container_storage_data/grafana/sample_dashboards/
-cp -v grafana/sample_dashboards/*.yml grafana/sample_dashboards/*.yaml ~/container_storage_data/grafana/grafana-dashboard-provisioning/
+cp -v grafana/sample_dashboards/dashboards.yml ~/container_storage_data/grafana/dashboards/
+chmod -v 0666  ~/container_storage_data/grafana/dashboards/dashboards.yml
 
-
-chmod -v 0777 ~/container_storage_data/grafana/sample_dashboards ~/container_storage_data/grafana/grafana-dashboard-provisioning
-chmod -v 0644 ~/container_storage_data/grafana/grafana-dashboard-provisioning/* ~/container_storage_data/grafana/sample_dashboards/*
-
-
-
+cp -v grafana/sample_dashboards/*.json ~/container_storage_data/grafana/dashboards/
+chmod -v 0666  ~/container_storage_data/grafana/dashboards/*.json
 
 cd ogs-pod
 podman play kube --replace ogs-pod.yml
@@ -40,4 +35,7 @@ cd systemdfiles
 ./create_install_or_update_user_systemd_files.sh
 
 podman pod ls
-echo all done, you should now have a running pod!
+echo all done, you should now have a running pod with grafana, loki, mimir, and the old semaphore ui!
+echo grafana is on port 3000  (admin/admin) for first login.
+
+echo you can use the playbooks to install the agents with ansible to your linux and windows hosts
