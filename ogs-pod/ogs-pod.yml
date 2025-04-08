@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ogs
+spec:
+  volumes:
+    - name: shared-storage
+      hostPath:
+        path: /home/aap/container_storage_data
+        type: DirectoryOrCreate  # Creates directory if it doesn't exist
+    - name: loki-config
+      hostPath:
+        path: /home/aap/container_storage_data/loki-config.yaml
+
+  containers:
+    - name: ogs-dashboard
+      image: localhost/ogs-dashboard:latest
+      ports:
+        - containerPort: 8088
+          hostPort: 8088
+
+    - name: grafana
+      image: localhost/grafana-oss-custom:11.6.0
+      ports:
+        - containerPort: 3000
+          hostPort: 3000
+      env:
+        - name: GF_AUTH_ANONYMOUS_ENABLED
+          value: "true"
+        - name: GF_PATHS_DATA
+          value: /shared-storage/grafana
+      volumeMounts:
+        - name: shared-storage
+          mountPath: /shared-storage
+
+    - name: loki
+      image: localhost/loki:latest
+      ports:
+        - containerPort: 3100
+          hostPort: 3100
+      volumeMounts:
+        - name: shared-storage
+          mountPath: /shared-storage
+            #        - name: loki-config
+            #          mountPath: /etc/loki/local-config.yaml
+            #          subPath: loki-config.yaml
+
+
+    - name: mimir
+      image: localhost/mimir:latest
+      ports:
+        - containerPort: 9009
+          hostPort: 9009
+      args:
+        - -config.file=/shared-storage/mimirconfigs/config.yml
+        - -blocks-storage.backend=filesystem
+        - -blocks-storage.filesystem.dir=/shared-storage/mimir/blocks
+        - -ruler-storage.backend=filesystem
+        - -ruler-storage.filesystem.dir=/shared-storage/mimir/ruler
+      volumeMounts:
+        - name: shared-storage
+          mountPath: /shared-storage

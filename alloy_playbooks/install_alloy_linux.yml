@@ -1,9 +1,10 @@
 ---
 - name: Install and configure Grafana Alloy
-  hosts: linux
+  hosts: all
   become: yes
   vars:
-    alloy_rpm_url: "https://github.com/grafana/alloy/releases/download/v1.7.5/alloy-1.7.5-1.amd64.rpm"
+    alloy_rpm_url: "http://164.225.186.87/rpms/alloy-1.7.5-1.amd64.rpm"
+    alloy_rpm_filename: "alloy-1.7.5-1.amd64.rpm"
     alloy_config_content: |
       logging {
         level = "info"
@@ -11,7 +12,7 @@
 
       prometheus.remote_write "mimir_host" {
         endpoint {
-          url = "http://192.168.10.171:9009/api/v1/push"
+          url = "http://164.225.186.87:9009/api/v1/push"
 
           // Optional: Add authentication if needed
           // basic_auth {
@@ -57,7 +58,7 @@
       // New Loki configuration
       loki.write "loki_host" {
         endpoint {
-          url = "http://192.168.10.171:3100/loki/api/v1/push"
+          url = "http://164.225.186.87:3100/loki/api/v1/push"
         }
       }
 
@@ -73,16 +74,25 @@
 
 
   tasks:
-    - name: Download Grafana Alloy RPM
+    - name: fetch file into EE
       ansible.builtin.get_url:
         url: "{{ alloy_rpm_url }}"
         dest: "/tmp/alloy-1.7.5-1.amd64.rpm"
         mode: '0644'
+      delegate_to: localhost
+        #run_once: true
+
+    - name: copy file to remote host
+      ansible.builtin.copy:
+        src: "/tmp/alloy-1.7.5-1.amd64.rpm"
+        dest: "/tmp/alloy-1.7.5-1.amd64.rpm"
+        mode: 0644
 
     - name: Install Grafana Alloy RPM
       ansible.builtin.yum:
         name: "/tmp/alloy-1.7.5-1.amd64.rpm"
         state: present
+        disable_gpg_check: true
 
     - name: Ensure Alloy configuration directory exists (verification)
       ansible.builtin.stat:
@@ -100,10 +110,11 @@
     - name: Start and enable Alloy service
       ansible.builtin.service:
         name: alloy
-        state: started
+        state: restarted
         enabled: yes
 
     - name: Clean up RPM file
       ansible.builtin.file:
         path: "/tmp/alloy-1.7.5-1.amd64.rpm"
         state: absent
+

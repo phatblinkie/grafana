@@ -2,17 +2,19 @@ auth_enabled: false
 
 server:
   http_listen_port: 3100
-  grpc_listen_port: 9096
-  log_level: debug
+  grpc_listen_port: 19096
+  log_level: info
   grpc_server_max_concurrent_streams: 1000
 
 common:
   instance_addr: 127.0.0.1
-  path_prefix: /tmp/loki
+  path_prefix: /shared-storage/loki
   storage:
     filesystem:
-      chunks_directory: /tmp/loki/chunks
-      rules_directory: /tmp/loki/rules
+      #directory: /shared-storage/loki
+      chunks_directory: /shared-storage/loki/chunks
+      rules_directory: /shared-storage/loki/rules
+
   replication_factor: 1
   ring:
     kvstore:

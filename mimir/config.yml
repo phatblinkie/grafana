@@ -38,6 +38,7 @@ ruler_storage:
 server:
   http_listen_port: 9009
   log_level: error
+  grpc_listen_port: 9055
 
 store_gateway:
   sharding_ring:

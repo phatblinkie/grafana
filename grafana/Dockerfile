@@ -48,12 +48,12 @@ USER grafana
 RUN if [ $GF_INSTALL_IMAGE_RENDERER_PLUGIN = "true" ]; then \
       if grep -i -q alpine /etc/issue; then \
         grafana-cli \
-          --pluginsDir "$GF_PATHS_PLUGINS" \
+          --insecure --pluginsDir "$GF_PATHS_PLUGINS" \
           --pluginUrl https://github.com/grafana/grafana-image-renderer/releases/latest/download/plugin-alpine-x64-no-chromium.zip \
           plugins install grafana-image-renderer; \
       else \
         grafana-cli \
-          --pluginsDir "$GF_PATHS_PLUGINS" \
+          --insecure --pluginsDir "$GF_PATHS_PLUGINS" \
           --pluginUrl https://github.com/grafana/grafana-image-renderer/releases/latest/download/plugin-linux-x64-glibc-no-chromium.zip \
           plugins install grafana-image-renderer; \
       fi \
@@ -69,9 +69,9 @@ RUN if [ ! -z "${GF_INSTALL_PLUGINS}" ]; then \
         if expr match "$plugin" '.*\;.*'; then \
           pluginUrl=$(echo "$plugin" | cut -d';' -f 1); \
           pluginInstallFolder=$(echo "$plugin" | cut -d';' -f 2); \
-          grafana-cli --pluginUrl ${pluginUrl} --pluginsDir "${GF_PATHS_PLUGINS}" plugins install "${pluginInstallFolder}"; \
+          grafana-cli --insecure --pluginUrl ${pluginUrl} --pluginsDir "${GF_PATHS_PLUGINS}" plugins install "${pluginInstallFolder}"; \
         else \
-          grafana-cli --pluginsDir "${GF_PATHS_PLUGINS}" plugins install ${plugin}; \
+          grafana-cli --insecure --pluginsDir "${GF_PATHS_PLUGINS}" plugins install ${plugin}; \
         fi \
       done \
     fi
