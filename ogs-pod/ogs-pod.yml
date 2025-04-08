@@ -8,19 +8,20 @@ spec:
       hostPath:
         path: /home/admin/container_storage_data
         type: DirectoryOrCreate  # Creates directory if it doesn't exist
-    - name: grafana-provisioning  # New volume for provisioning
+
+    - name: grafana-storage
       hostPath:
-        path: /home/admin/container_storage_data/grafana/provisioning  # Directory containing datasources.yaml
+        path: /home/admin/container_storage_data/grafana
         type: DirectoryOrCreate
 
-          # New: Add volumes for dashboards
+    - name: grafana-provisioning
+      hostPath:
+        path: /home/admin/container_storage_data/grafana/provisioning
+        type: DirectoryOrCreate
+
     - name: grafana-dashboards
       hostPath:
-        path: /home/admin/container_storage_data/grafana/sample_dashboards  # Folder containing JSON files
-        type: DirectoryOrCreate
-    - name: grafana-dashboard-provisioning
-      hostPath:
-        path: /home/admin/container_storage_data/grafana/grafana-dashboard-provisioning  # Folder for dashboards.yaml
+        path: /home/admin/container_storage_data/grafana/dashboards
         type: DirectoryOrCreate
 
   containers:
@@ -39,22 +40,24 @@ spec:
         - name: GF_AUTH_ANONYMOUS_ENABLED
           value: "true"
         - name: GF_PATHS_DATA
-          value: /shared-storage/grafana
-
+          value: /var/lib/grafana  # Grafana's default data directory (mounted to host)
         - name: GF_PATHS_PROVISIONING
-          value: "/etc/grafana/provisioning"
+          value: /etc/grafana/provisioning
       volumeMounts:
-        - name: shared-storage
-          mountPath: /shared-storage
+        - name: grafana-storage
+          mountPath: /var/lib/grafana  # Persist Grafana's working data (dashboards, DB, etc.)
+        - name: grafana-provisioning
+          mountPath: /etc/grafana/provisioning  # For datasources.yaml, dashboards.yaml
+        - name: grafana-dashboards
+          mountPath: /var/lib/grafana/dashboards  # Pre-loaded dashboards (JSON files)
+
         - name: grafana-provisioning
           mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
-          subPath: datasources.yaml
-        # New: Mount dashboard provisioning files
-        - name: grafana-dashboard-provisioning
+          subPath: datasources.yaml            
+
+        - name: grafana-dashboards
           mountPath: /etc/grafana/provisioning/dashboards/dashboards.yaml
           subPath: dashboards.yml
-        - name: grafana-dashboards
-          mountPath: /etc/grafana/provisioning/dashboards
 
     - name: loki
       image: localhost/loki:latest
