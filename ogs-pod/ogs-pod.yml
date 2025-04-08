@@ -8,6 +8,20 @@ spec:
       hostPath:
         path: /home/admin/container_storage_data
         type: DirectoryOrCreate  # Creates directory if it doesn't exist
+    - name: grafana-provisioning  # New volume for provisioning
+      hostPath:
+        path: /home/admin/container_storage_data/grafana/provisioning  # Directory containing datasources.yaml
+        type: DirectoryOrCreate
+
+          # New: Add volumes for dashboards
+    - name: grafana-dashboards
+      hostPath:
+        path: /home/admin/container_storage_data/grafana/sample_dashboards  # Folder containing JSON files
+        type: DirectoryOrCreate
+    - name: grafana-dashboard-provisioning
+      hostPath:
+        path: /home/admin/container_storage_data/grafana/grafana-dashboard-provisioning  # Folder for dashboards.yaml
+        type: DirectoryOrCreate
 
   containers:
     - name: ogs-dashboard
@@ -26,9 +40,21 @@ spec:
           value: "true"
         - name: GF_PATHS_DATA
           value: /shared-storage/grafana
+
+        - name: GF_PATHS_PROVISIONING
+          value: "/etc/grafana/provisioning"
       volumeMounts:
         - name: shared-storage
           mountPath: /shared-storage
+        - name: grafana-provisioning
+          mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
+          subPath: datasources.yaml
+        # New: Mount dashboard provisioning files
+        - name: grafana-dashboard-provisioning
+          mountPath: /etc/grafana/provisioning/dashboards/dashboards.yaml
+          subPath: dashboards.yml
+        - name: grafana-dashboards
+          mountPath: /etc/grafana/provisioning/dashboards
 
     - name: loki
       image: localhost/loki:latest
