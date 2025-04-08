@@ -6,11 +6,8 @@ spec:
   volumes:
     - name: shared-storage
       hostPath:
-        path: /home/aap/container_storage_data
+        path: /home/admin/container_storage_data
         type: DirectoryOrCreate  # Creates directory if it doesn't exist
-    - name: loki-config
-      hostPath:
-        path: /home/aap/container_storage_data/loki-config.yaml
 
   containers:
     - name: ogs-dashboard

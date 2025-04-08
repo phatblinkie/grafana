@@ -2,6 +2,9 @@ echo WARNING this will build or rebuild the pod from the images created by the 1
 echo WARNING, there will be data loss as the containers use built in volumes.
 sleep 10
 
+mkdir -p container_storage_data
+chmod 0777 container_storage_data
+
 cd ogs-pod
 podman play kube --replace ogs-pod.yml
 
