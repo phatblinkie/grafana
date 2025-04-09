@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ogs
+spec:
+  volumes:
+    - name: shared-storage
+      hostPath:
+        path: HOMEDIR/container_storage_data
+        type: DirectoryOrCreate  # Creates directory if it doesn't exist
+
+    - name: grafana-storage
+      hostPath:
+        path: HOMEDIR/container_storage_data/grafana
+        type: DirectoryOrCreate
+
+    - name: grafana-provisioning
+      hostPath:
+        path: HOMEDIR/container_storage_data/grafana/provisioning
+        type: DirectoryOrCreate
+
+    - name: grafana-dashboards
+      hostPath:
+        path: HOMEDIR/container_storage_data/grafana/dashboards
+        type: DirectoryOrCreate
+
+  containers:
+    - name: ogs-dashboard
+      image: localhost/ogs-dashboard:latest
+      ports:
+        - containerPort: 8088
+          hostPort: 8088
+
+    - name: grafana
+      image: localhost/grafana-oss-custom:11.6.0
+      ports:
+        - containerPort: 3000
+          hostPort: 3000
+      env:
+        - name: GF_AUTH_ANONYMOUS_ENABLED
+          value: "true"
+        - name: GF_PATHS_DATA
+          value: /var/lib/grafana  # Grafana's default data directory (mounted to host)
+        - name: GF_PATHS_PROVISIONING
+          value: /etc/grafana/provisioning
+      volumeMounts:
+        - name: grafana-storage
+          mountPath: /var/lib/grafana  # Persist Grafana's working data (dashboards, DB, etc.)
+        - name: grafana-provisioning
+          mountPath: /etc/grafana/provisioning  # For datasources.yaml, dashboards.yaml
+        - name: grafana-dashboards
+          mountPath: /var/lib/grafana/dashboards  # Pre-loaded dashboards (JSON files)
+
+        - name: grafana-provisioning
+          mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
+          subPath: datasources.yaml            
+
+        - name: grafana-dashboards
+          mountPath: /etc/grafana/provisioning/dashboards/dashboards.yaml
+          subPath: dashboards.yml
+
+    - name: loki
+      image: localhost/loki:latest
+      ports:
+        - containerPort: 3100
+          hostPort: 3100
+      volumeMounts:
+        - name: shared-storage
+          mountPath: /shared-storage
+            #        - name: loki-config
+            #          mountPath: /etc/loki/local-config.yaml
+            #          subPath: loki-config.yaml
+
+
+    - name: mimir
+      image: localhost/mimir:latest
+      ports:
+        - containerPort: 9009
+          hostPort: 9009
+      args:
+        - -config.file=/shared-storage/mimirconfigs/config.yml
+        - -blocks-storage.backend=filesystem
+        - -blocks-storage.filesystem.dir=/shared-storage/mimir/blocks
+        - -ruler-storage.backend=filesystem
+        - -ruler-storage.filesystem.dir=/shared-storage/mimir/ruler
+      volumeMounts:
+        - name: shared-storage
+          mountPath: /shared-storage
