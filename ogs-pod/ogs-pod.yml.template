@@ -3,6 +3,7 @@ kind: Pod
 metadata:
   name: ogs
 spec:
+  restartPolicy: Never
   volumes:
     - name: shared-storage
       hostPath:
