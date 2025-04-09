@@ -15,3 +15,7 @@ cd ../mimir
 echo Building mimir image
 sleep 3
 ./1.build-mimir-image.sh
+
+cd ../vuejs-dashboard
+podman build -f Dockerfile-freshbuild -t ogs-dashboard:latest
+
