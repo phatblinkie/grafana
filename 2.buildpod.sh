@@ -1,6 +1,7 @@
 echo WARNING this will build or rebuild the pod from the images created by the 1.buildallimages.sh script
 echo WARNING, there will be data loss as the containers use built in volumes.
 sleep 10
+podman pod stop ogs
 
 mkdir -v -p ~/container_storage_data
 chmod -v 0777 ~/container_storage_data
