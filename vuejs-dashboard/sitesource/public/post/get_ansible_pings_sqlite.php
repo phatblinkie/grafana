@@ -24,7 +24,8 @@ createTables($conn);
  *     CREATE TABLE IF NOT EXISTS ansible_ping_status (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         hostname TEXT NOT NULL,
-        ansible_ping TEXT NOT NULL,
+        ip_address TEXT,
+	ansible_ping TEXT NOT NULL,
         last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         last_responded DATETIME,
         task_id INTEGER,
@@ -32,8 +33,7 @@ createTables($conn);
     );
  */
 
-//$sql = "select * from ansible_ping_status";
-$sql = "SELECT 
+$sql = "SELECT
     id,
     hostname,
     ansible_ping,
@@ -43,11 +43,11 @@ $sql = "SELECT
     -- Age in seconds for last_updated
     strftime('%s', 'now') - strftime('%s', last_updated) AS last_updated_age_seconds,
     -- Age in seconds for last_responded (handle NULL cases)
-    CASE 
+    CASE
         WHEN last_responded IS NULL THEN NULL
         ELSE strftime('%s', 'now') - strftime('%s', last_responded)
     END AS last_responded_age_seconds
-FROM 
+FROM
     ansible_ping_status";
 
 try {
