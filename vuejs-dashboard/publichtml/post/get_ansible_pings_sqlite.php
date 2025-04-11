@@ -37,6 +37,7 @@ $sql = "SELECT
     id,
     hostname,
     ansible_ping,
+    ip_address,
     last_updated,
     last_responded,
     task_id,
