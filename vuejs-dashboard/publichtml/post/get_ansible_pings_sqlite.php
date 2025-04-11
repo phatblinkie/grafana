@@ -24,7 +24,8 @@ createTables($conn);
  *     CREATE TABLE IF NOT EXISTS ansible_ping_status (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         hostname TEXT NOT NULL,
-        ansible_ping TEXT NOT NULL,
+        ip_address TEXT,
+	ansible_ping TEXT NOT NULL,
         last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         last_responded DATETIME,
         task_id INTEGER,
