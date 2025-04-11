@@ -49,31 +49,46 @@
       }
 
 
-      //scrape if unix as well
-      prometheus.scrape "localhost" {
-        targets    = prometheus.exporter.unix.localhost.targets
+      discovery.relabel "linux_targets" {
+        targets = prometheus.exporter.unix.localhost.targets
+
+        rule {
+          target_label = "ip_address"
+          replacement = "{{ ansible_default_ipv4.address }}"
+        }
+
+        rule {
+          target_label = "hostname"
+          replacement = "{{ inventory_hostname }}"
+        }
+      }
+
+      prometheus.scrape "unix_metrics" {
+        targets    = discovery.relabel.linux_targets.output
         forward_to = [prometheus.remote_write.mimir_host.receiver]
       }
 
-      // New Loki configuration
       loki.write "loki_host" {
         endpoint {
           url = "http://164.225.186.87:3100/loki/api/v1/push"
         }
       }
 
-
       loki.source.journal "journal_logs" {
         forward_to = [loki.write.loki_host.receiver]
 
         labels = {
           job  = "journal",
-          host = env("HOSTNAME"), // This will use the system's hostname
+          host = env("HOSTNAME"),
+          ip_address = "{{ ansible_default_ipv4.address }}",
         }
       }
 
 
   tasks:
+    - name: gather facts so it can know the ip address
+      ansible.builtin.setup:
+
     - name: fetch file into EE
       ansible.builtin.get_url:
         url: "{{ alloy_rpm_url }}"
