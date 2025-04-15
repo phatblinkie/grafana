@@ -8,6 +8,103 @@
       alloy_install_dir: "C:\\Program Files\\GrafanaLabs\\Alloy"
       alloy_config_path: "C:\\Program Files\\GrafanaLabs\\Alloy\\config.alloy"
       alloy_service_name: "alloy"
+      get_installed_software_path: "C:\\scripts\\get_installed_software.ps1"
+      get_installed_software_content: |
+        $metricsDir = "C:\metrics"
+        $outputFile = "$metricsDir\software_metrics.prom"
+
+        # Create directory if needed
+        if (-not (Test-Path -Path $metricsDir)) {
+            New-Item -ItemType Directory -Path $metricsDir -Force | Out-Null
+        }
+
+        # Write single HELP/TYPE header
+        @"
+        # HELP windows_software_info Installed software information
+        # TYPE windows_software_info gauge
+        "@ | Out-File -FilePath $outputFile -Encoding utf8 -Force
+
+        # Append metrics data
+        Get-ItemProperty "HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*",
+                "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" |
+        Where-Object { $_.DisplayName -ne $null } |
+        ForEach-Object {
+          $name = $_.DisplayName -replace '"','\"' -replace '\n',' ' -replace '\r',' '
+          $version = if ($_.DisplayVersion) { $_.DisplayVersion -replace '"','\"' } else { "unknown" }
+          $publisher = if ($_.Publisher) { $_.Publisher -replace '"','\"' } else { "unknown" }
+        "windows_software_info{displayname=`"$name`",version=`"$version`",publisher=`"$publisher`"} 1"} | Add-Content -Path $outputFile -Encoding utf8
+      create_scheduled_task_path: "C:\\scripts\\create_scheduled_task.ps1"
+      create_scheduled_task_content: |
+
+        # Run this script as Administrator
+
+        # Configuration
+        $scriptPath = "C:\scripts\get_installed_software.ps1"
+        $taskName = "Export Installed Software"
+
+        # Verify admin rights
+        if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+            Write-Warning "Please run this script as Administrator"
+            exit 1
+        }
+
+        # Create directories if missing
+        if (-not (Test-Path -Path "C:\scripts")) {
+            New-Item -ItemType Directory -Path "C:\scripts" -Force | Out-Null
+        }
+
+        if (-not (Test-Path -Path "C:\metrics")) {
+            New-Item -ItemType Directory -Path "C:\metrics" -Force | Out-Null
+        }
+
+        # Create task action
+        $action = New-ScheduledTaskAction `
+            -Execute "powershell.exe" `
+            -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
+
+        # Create task trigger (runs daily at 3 AM)
+        $trigger = New-ScheduledTaskTrigger `
+            -Daily `
+            -At 3am
+
+        # Configure task settings
+        $settings = New-ScheduledTaskSettingsSet `
+            -StartWhenAvailable `
+            -DontStopOnIdleEnd `
+            -AllowStartIfOnBatteries `
+            -DontStopIfGoingOnBatteries
+
+        # Create task principal (run as SYSTEM)
+        $principal = New-ScheduledTaskPrincipal `
+            -UserId "NT AUTHORITY\SYSTEM" `
+            -LogonType ServiceAccount `
+            -RunLevel Highest
+
+        # Register the task
+        try {
+            Register-ScheduledTask `
+                -TaskName $taskName `
+                -Action $action `
+                -Trigger $trigger `
+                -Settings $settings `
+                -Principal $principal `
+                -Force
+
+            Write-Host "Successfully created scheduled task '$taskName'" -ForegroundColor Green
+
+            # Verify task creation
+            $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+            if ($task) {
+                Write-Host "Task configuration:"
+                $task | Format-List *
+            } else {
+                Write-Warning "Task creation verification failed"
+            }
+        } catch {
+            Write-Error "Failed to create task: $_"
+            exit 1
+        }
+
       alloy_config_content: |
         logging {
           level = "info"
@@ -171,11 +268,40 @@
           creates: "{{ alloy_install_dir }}\\alloy.exe"
         when: not alloy_installed.stat.exists
 
+
+      - name: create needed directories 1
+        ansible.windows.win_file:
+          path: 'C:\metrics'
+          state: directory
+
+      - name: create needed directories 2
+        ansible.windows.win_file:
+          path: 'C:\scripts'
+          state: directory
+
       - name: Create config file
         win_copy:
           dest: "{{ alloy_config_path }}"
           content: "{{ alloy_config_content }}"
           force: yes
+
+      - name: create software exporter powershell
+        ansible.windows.win_copy:
+          dest: "{{ get_installed_software_path }}"
+          content: "{{ get_installed_software_content }}"
+          force: yes
+
+      - name: create scheduled task powershell
+        ansible.windows.win_copy:
+          dest: "{{ create_scheduled_task_path }}"
+          content: "{{ create_scheduled_task_content }}"
+          force: yes
+
+      - name: execute powershell scheduled task
+        win_shell: "{{ create_scheduled_task_path }}"
+
+      - name: execute powershell software export list
+        win_shell: "{{ get_installed_software_path }}"
 
       - name: Ensure Alloy service is running
         win_service:
