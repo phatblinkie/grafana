@@ -5,6 +5,87 @@
   vars:
     alloy_rpm_url: "https://github.com/grafana/alloy/releases/download/v1.7.5/alloy-1.7.5-1.amd64.rpm"
     alloy_rpm_filename: "alloy-1.7.5-1.amd64.rpm"
+    software_exporter_service_path: "/etc/systemd/system/software-exporter.service"
+    software_exporter_service_content: |
+      [Unit]
+      Description=Linux Software Metrics Exporter
+      After=network.target
+
+      [Service]
+      Type=oneshot
+      User=root
+      ExecStart=/usr/local/bin/export_installed_software.sh
+    software_exporter_timer_path: "/etc/systemd/system/software-exporter.timer"
+    software_exporter_timer_content: |
+      [Unit]
+      Description=Run software exporter hourly
+
+      [Timer]
+      OnCalendar=hourly
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+    export_installed_software_path: "/usr/local/bin/export_installed_software.sh"
+    export_installed_software_content: |
+      #!/bin/bash
+      OUTPUT_DIR="/var/lib/node_exporter/textfile_collector"
+      METRIC_FILE="${OUTPUT_DIR}/software_metrics.prom.tmp"
+      FINAL_FILE="${OUTPUT_DIR}/software_metrics.prom"
+
+      # Create directory if needed
+      mkdir -p "$OUTPUT_DIR"
+
+      # Function to escape Prometheus label values
+      escape_label() {
+        echo "$1" | sed \
+          -e 's/\\/\\\\/g' \
+          -e 's/"/\\"/g' \
+          -e 's/^/"/' \
+          -e 's/$/"/' \
+          -e 's/\n/\\n/g' \
+          -e 's/\r/\\r/g'
+      }
+
+      # Write the metric header
+      echo '# HELP linux_software_info Installed software information
+      # TYPE linux_software_info gauge' > "$METRIC_FILE"
+
+      # For Debian/Ubuntu (dpkg)
+      if command -v dpkg >/dev/null; then
+        dpkg-query -W --showformat='${Package} ${Version} ${Architecture}\n' | while read pkg ver arch; do
+          printf 'linux_software_info{name=%s,version=%s,arch=%s} 1\n' \
+            "$(escape_label "$pkg")" \
+            "$(escape_label "$ver")" \
+            "$(escape_label "$arch")" >> "$METRIC_FILE"
+        done
+      fi
+
+      # For RHEL/CentOS (rpm)
+      if command -v rpm >/dev/null; then
+        rpm -qa --queryformat '%{NAME} %{VERSION}-%{RELEASE} %{ARCH}\n' | while read pkg ver arch; do
+          printf 'linux_software_info{name=%s,version=%s,arch=%s} 1\n' \
+            "$(escape_label "$pkg")" \
+            "$(escape_label "$ver")" \
+            "$(escape_label "$arch")" >> "$METRIC_FILE"
+        done
+      fi
+
+      # For Alpine (apk)
+      if command -v apk >/dev/null; then
+        apk info -v | while read pkg; do
+          name=$(echo "$pkg" | sed 's/-[0-9].*$//')
+          ver=$(echo "$pkg" | grep -o '[0-9].*$')
+          printf 'linux_software_info{name=%s,version=%s,arch=""} 1\n' \
+            "$(escape_label "$name")" \
+            "$(escape_label "$ver")" >> "$METRIC_FILE"
+        done
+      fi
+
+      # Atomically update the file
+      mv -f "$METRIC_FILE" "$FINAL_FILE"
+
+
     alloy_config_content: |
       logging {
         level = "info"
@@ -130,6 +211,41 @@
         owner: root
         group: root
         mode: '0644'
+
+    - name: Install software exporter service file
+      ansible.builtin.copy:
+        dest: "{{ software_exporter_service_path }}"
+        content: "{{ software_exporter_service_content }}"
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Install software exporter timer file
+      ansible.builtin.copy:
+        dest: "{{ software_exporter_timer_path }}"
+        content: "{{ software_exporter_timer_content }}"
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Install software exporter bash script
+      ansible.builtin.copy:
+        dest: "{{ export_installed_software_path }}"
+        content: "{{ export_installed_software_content }}"
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Force systemd to reread configs
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+
+    - name: Enable and restart service software-exporter and ensure it is not masked
+      ansible.builtin.systemd_service:
+        name: software-exporter
+        enabled: true
+        masked: no
+        state: restarted
 
     - name: Start and enable Alloy service
       ansible.builtin.service:
