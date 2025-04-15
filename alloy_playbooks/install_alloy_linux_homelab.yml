@@ -3,7 +3,7 @@
   hosts: all
   become: yes
   vars:
-    alloy_rpm_url: "http://164.225.186.87/rpms/alloy-1.7.5-1.amd64.rpm"
+    alloy_rpm_url: "https://github.com/grafana/alloy/releases/download/v1.7.5/alloy-1.7.5-1.amd64.rpm"
     alloy_rpm_filename: "alloy-1.7.5-1.amd64.rpm"
     alloy_config_content: |
       logging {
@@ -12,45 +12,9 @@
 
       prometheus.remote_write "mimir_host" {
         endpoint {
-          url = "http://164.225.186.87:9009/api/v1/push"
-
-          // Optional: Add authentication if needed
-          // basic_auth {
-          //   username = "USER"
-          //   password = "PASS"
-          // }
+          url = "http://192.168.11.165:9009/api/v1/push"
         }
       }
-
-      
-prometheus.exporter.unix "localhost" {
-  enable_collectors = [
-    "boottime",
-    "cpu",
-    "cpufreq",
-    "diskstats",
-    "edac",
-    "filesystem",
-    "hwmon",
-    "loadavg",
-    "logind",
-    "meminfo",
-    "netclass",
-    "netdev",
-    "netstat",
-    "network_route",
-    "os",
-    "sockstat",
-    "systemd",
-    "textfile",
-    "thermal_zone",
-    "time",
-    "uname",
-  ]
-
-  textfile {
-    directory = "/var/lib/node_exporter/textfile_collector"
-  }
 
       prometheus.exporter.unix "localhost" {
         enable_collectors = [
@@ -83,15 +47,14 @@ prometheus.exporter.unix "localhost" {
 
       }
 
-
       discovery.relabel "linux_targets" {
         targets = prometheus.exporter.unix.localhost.targets
-
+        
         rule {
           target_label = "ip_address"
           replacement = "{{ host_ip }}"
         }
-
+        
         rule {
           target_label = "hostname"
           replacement = "{{ inventory_hostname }}"
@@ -105,7 +68,7 @@ prometheus.exporter.unix "localhost" {
 
       loki.write "loki_host" {
         endpoint {
-          url = "http://164.225.186.87:3100/loki/api/v1/push"
+          url = "http://192.168.11.165:3100/loki/api/v1/push"
         }
       }
 
@@ -118,7 +81,6 @@ prometheus.exporter.unix "localhost" {
           ip_address = "{{ host_ip }}",
         }
       }
-
 
   tasks:
     - name: Check if inventory_hostname is an IP address
@@ -143,7 +105,6 @@ prometheus.exporter.unix "localhost" {
         dest: "/tmp/alloy-1.7.5-1.amd64.rpm"
         mode: '0644'
       delegate_to: localhost
-        #run_once: true
 
     - name: copy file to remote host
       ansible.builtin.copy:
@@ -157,7 +118,7 @@ prometheus.exporter.unix "localhost" {
         state: present
         disable_gpg_check: true
 
-    - name: Ensure Alloy configuration directory exists (verification)
+    - name: Ensure Alloy configuration directory exists
       ansible.builtin.stat:
         path: /etc/alloy
       register: alloy_dir
@@ -180,4 +141,3 @@ prometheus.exporter.unix "localhost" {
       ansible.builtin.file:
         path: "/tmp/alloy-1.7.5-1.amd64.rpm"
         state: absent
-

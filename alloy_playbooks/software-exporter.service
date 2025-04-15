@@ -1,0 +1,8 @@
+[Unit]
+Description=Linux Software Metrics Exporter
+After=network.target
+
+[Service]
+Type=oneshot
+User=node_exporter
+ExecStart=/usr/local/bin/export_installed_software.sh

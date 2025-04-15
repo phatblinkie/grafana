@@ -4,7 +4,7 @@
     gather_facts: yes
     vars:
       alloy_version: "1.7.5"
-      alloy_installer_url: "http://164.225.186.87/rpms/alloy-installer-windows-amd64.exe.zip"
+      alloy_installer_url: "https://github.com/grafana/alloy/releases/download/v1.7.5/alloy-installer-windows-amd64.exe.zip"
       alloy_install_dir: "C:\\Program Files\\GrafanaLabs\\Alloy"
       alloy_config_path: "C:\\Program Files\\GrafanaLabs\\Alloy\\config.alloy"
       alloy_service_name: "alloy"
@@ -15,7 +15,7 @@
 
         prometheus.remote_write "mimir_host" {
           endpoint {
-            url = "http://164.225.186.87:9009/api/v1/push"
+            url = "http://192.168.11.165:9009/api/v1/push"
           }
         }
 
@@ -38,6 +38,7 @@
           text_file {
             text_file_directory = "C:\\metrics"
           }
+
         }
 
         discovery.relabel "windows_targets" {
@@ -61,7 +62,7 @@
 
         loki.write "remote_loki" {
           endpoint {
-            url = "http://164.225.186.87:3100/loki/api/v1/push"
+            url = "http://192.168.11.165:3100/loki/api/v1/push"
           }
         }
 
