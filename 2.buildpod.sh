@@ -26,6 +26,16 @@ chmod -v 0666  ~/container_storage_data/grafana/dashboards/dashboards.yml
 cp -v grafana/sample_dashboards/*.json ~/container_storage_data/grafana/dashboards/
 chmod -v 0666  ~/container_storage_data/grafana/dashboards/*.json
 
+mkdir -p ~/container_storage_data/ogs-dashboard/html
+mkdir -p ~/container_storage_data/ogs-dashboard/sqlite
+chmod -v 0777 ~/container_storage_data/ogs-dashboard/sqlite
+
+
+
+rsync -avh vuejs-dashboard/publichtml/ ~/container_storage_data/ogs-dashboard/html/
+
+#chmod -R 0666 ~/container_storage_data/ogs-dashboard/html/
+
 cd ogs-pod
 
 #fix path that has to be hard coded with substitution

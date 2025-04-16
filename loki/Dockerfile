@@ -1,4 +1,5 @@
-from  docker.io/grafana/loki:3.4.1
+#from  docker.io/grafana/loki:3.4.1
+FROM registry1.dso.mil/ironbank/opensource/grafana/loki:3.3.2
 #RUN mkdir -p /etc/loki && chown loki:loki /etc/loki
 #VOLUME /mnt/config
 #USER root

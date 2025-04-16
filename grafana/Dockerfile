@@ -1,7 +1,7 @@
 ARG GRAFANA_VERSION="11.6.0"
 
-FROM docker.io/grafana/grafana-oss:${GRAFANA_VERSION}
-
+#FROM docker.io/grafana/grafana-oss:${GRAFANA_VERSION}
+FROM registry1.dso.mil/ironbank/opensource/grafana/grafana:${GRAFANA_VERSION}
 ARG GF_INSTALL_IMAGE_RENDERER_PLUGIN="false"
 
 ARG GF_GID="0"

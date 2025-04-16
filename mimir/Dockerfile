@@ -1,5 +1,6 @@
-FROM docker.io/grafana/mimir:2.16.0
-VOLUME /var/mimir
+#FROM docker.io/grafana/mimir:2.16.0
+FROM registry1.dso.mil/ironbank/opensource/grafana/mimir:2.15.1
+#VOLUME /var/mimir
 #EXPOSE 9009
 #RUN mkdir -p /etc/mimir
 COPY config.yml /etc/mimir/config.yml

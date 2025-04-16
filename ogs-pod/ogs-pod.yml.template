@@ -25,12 +25,27 @@ spec:
         path: HOMEDIR/container_storage_data/grafana/dashboards
         type: DirectoryOrCreate
 
+    - name: ogs-dashboard-sql
+      hostPath:
+        path: HOMEDIR/container_storage_data/ogs-dashboard/sqlite
+        type: DirectoryOrCreate
+
+    - name: ogs-dashboard-html
+      hostPath:
+        path: HOMEDIR/container_storage_data/ogs-dashboard/html
+        type: DirectoryOrCreate
+
   containers:
     - name: ogs-dashboard
       image: localhost/ogs-dashboard:latest
       ports:
         - containerPort: 8088
           hostPort: 8088
+      volumeMounts:
+        - name: ogs-dashboard-html
+          mountPath: /var/www/html
+        - name: ogs-dashboard-sql
+          mountPath: /sqlitedata
 
     - name: grafana
       image: localhost/grafana-oss-custom:11.6.0
@@ -80,10 +95,10 @@ spec:
           hostPort: 9009
       args:
         - -config.file=/shared-storage/mimirconfigs/config.yml
-        - -blocks-storage.backend=filesystem
-        - -blocks-storage.filesystem.dir=/shared-storage/mimir/blocks
-        - -ruler-storage.backend=filesystem
-        - -ruler-storage.filesystem.dir=/shared-storage/mimir/ruler
+#        - -blocks-storage.backend=filesystem
+#        - -blocks-storage.filesystem.dir=/shared-storage/mimir/blocks
+#        - -ruler-storage.backend=filesystem
+#        - -ruler-storage.filesystem.dir=/shared-storage/mimir/ruler
       volumeMounts:
         - name: shared-storage
           mountPath: /shared-storage

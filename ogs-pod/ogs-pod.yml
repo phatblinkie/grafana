@@ -7,22 +7,32 @@ spec:
   volumes:
     - name: shared-storage
       hostPath:
-        path: /home/admin/container_storage_data
+        path: /home/aap/container_storage_data
         type: DirectoryOrCreate  # Creates directory if it doesn't exist
 
     - name: grafana-storage
       hostPath:
-        path: /home/admin/container_storage_data/grafana
+        path: /home/aap/container_storage_data/grafana
         type: DirectoryOrCreate
 
     - name: grafana-provisioning
       hostPath:
-        path: /home/admin/container_storage_data/grafana/provisioning
+        path: /home/aap/container_storage_data/grafana/provisioning
         type: DirectoryOrCreate
 
     - name: grafana-dashboards
       hostPath:
-        path: /home/admin/container_storage_data/grafana/dashboards
+        path: /home/aap/container_storage_data/grafana/dashboards
+        type: DirectoryOrCreate
+
+    - name: ogs-dashboard-sql
+      hostPath:
+        path: /home/aap/container_storage_data/ogs-dashboard/sqlite
+        type: DirectoryOrCreate
+
+    - name: ogs-dashboard-html
+      hostPath:
+        path: /home/aap/container_storage_data/ogs-dashboard/html
         type: DirectoryOrCreate
 
   containers:
@@ -31,6 +41,11 @@ spec:
       ports:
         - containerPort: 8088
           hostPort: 8088
+      volumeMounts:
+        - name: ogs-dashboard-html
+          mountPath: /var/www/html
+        - name: ogs-dashboard-sql
+          mountPath: /sqlitedata
 
     - name: grafana
       image: localhost/grafana-oss-custom:11.6.0
@@ -80,10 +95,10 @@ spec:
           hostPort: 9009
       args:
         - -config.file=/shared-storage/mimirconfigs/config.yml
-        - -blocks-storage.backend=filesystem
-        - -blocks-storage.filesystem.dir=/shared-storage/mimir/blocks
-        - -ruler-storage.backend=filesystem
-        - -ruler-storage.filesystem.dir=/shared-storage/mimir/ruler
+#        - -blocks-storage.backend=filesystem
+#        - -blocks-storage.filesystem.dir=/shared-storage/mimir/blocks
+#        - -ruler-storage.backend=filesystem
+#        - -ruler-storage.filesystem.dir=/shared-storage/mimir/ruler
       volumeMounts:
         - name: shared-storage
           mountPath: /shared-storage
