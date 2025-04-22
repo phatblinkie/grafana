@@ -7,32 +7,32 @@ spec:
   volumes:
     - name: shared-storage
       hostPath:
-        path: /home/aap/container_storage_data
+        path: /home/admin/container_storage_data
         type: DirectoryOrCreate  # Creates directory if it doesn't exist
 
     - name: grafana-storage
       hostPath:
-        path: /home/aap/container_storage_data/grafana
+        path: /home/admin/container_storage_data/grafana
         type: DirectoryOrCreate
 
     - name: grafana-provisioning
       hostPath:
-        path: /home/aap/container_storage_data/grafana/provisioning
+        path: /home/admin/container_storage_data/grafana/provisioning
         type: DirectoryOrCreate
 
     - name: grafana-dashboards
       hostPath:
-        path: /home/aap/container_storage_data/grafana/dashboards
+        path: /home/admin/container_storage_data/grafana/dashboards
         type: DirectoryOrCreate
 
     - name: ogs-dashboard-sql
       hostPath:
-        path: /home/aap/container_storage_data/ogs-dashboard/sqlite
+        path: /home/admin/container_storage_data/ogs-dashboard/sqlite
         type: DirectoryOrCreate
 
     - name: ogs-dashboard-html
       hostPath:
-        path: /home/aap/container_storage_data/ogs-dashboard/html
+        path: /home/admin/container_storage_data/ogs-dashboard/html
         type: DirectoryOrCreate
 
   containers:
