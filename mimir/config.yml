@@ -1,6 +1,19 @@
 # Do not use this configuration in production.
 # It is for demonstration purposes only.
 multitenancy_enabled: false
+limits:
+  #keeps entries from machines that are not perfectly time synced from being rejected
+  out_of_order_time_window: 1d
+  #needed to accept samples if hosts are down a while, due to connection loss
+  max_global_series_per_user: 5000000
+  creation_grace_period: 24h
+  #needed because queued up samples on downed hosts will be rejected.
+  #which delays it showing as online again for several minutes
+  #also, increase ingestion limits since we are storing a LOT of metric data from a lot of hosts.
+  #these are global limits not per host.
+  ingestion_rate: 300000
+  ingestion_burst_size: 1000000
+  request_rate: 0
 
 blocks_storage:
   backend: filesystem
