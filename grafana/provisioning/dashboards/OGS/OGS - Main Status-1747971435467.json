@@ -1,0 +1,1970 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 14,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mimir"
+      },
+      "description": "Checks authentication and connection via playbook every 5 minutes",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ansible Ping"
+            },
+            "properties": [
+              {
+                "id": "color"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "color": "red",
+                        "index": 0,
+                        "text": "DOWN"
+                      },
+                      "1": {
+                        "color": "green",
+                        "index": 1,
+                        "text": "UP"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "custom.align",
+                "value": "center"
+              },
+              {
+                "id": "noValue",
+                "value": "ERR"
+              },
+              {
+                "id": "custom.width",
+                "value": 105
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last Reported"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "center"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green"
+                    },
+                    {
+                      "color": "orange",
+                      "value": 400
+                    },
+                    {
+                      "color": "red",
+                      "value": 560
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 141
+              },
+              {
+                "id": "unit",
+                "value": "dtdurations"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Host Name"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 234
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Patch Version"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "Not Compliant": {
+                        "color": "red",
+                        "index": 1,
+                        "text": "❌Non-Compliant"
+                      },
+                      "undefined": {
+                        "color": "red",
+                        "index": 3,
+                        "text": "❌Non-Compliant"
+                      }
+                    },
+                    "type": "value"
+                  },
+                  {
+                    "options": {
+                      "pattern": "^(?!Not Compliant$).*",
+                      "result": {
+                        "color": "green",
+                        "index": 0
+                      }
+                    },
+                    "type": "regex"
+                  },
+                  {
+                    "options": {
+                      "match": "null+nan",
+                      "result": {
+                        "color": "red",
+                        "index": 2,
+                        "text": "❌Non-Compliant"
+                      }
+                    },
+                    "type": "special"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 22,
+        "w": 5,
+        "x": 0,
+        "y": 0
+      },
+      "id": 6,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "frameIndex": 0,
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "last_over_time({__name__=~\"node_up\"}[5m])",
+          "format": "table",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "",
+          "range": false,
+          "refId": "A",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "floor(time() - last_over_time({__name__=~\"node_last_up_seconds\"}[5m]))",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "floor(time() - last_over_time({__name__=~\"node_outage_start_seconds\"}[1m]))",
+          "format": "table",
+          "hide": true,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "label_replace(system_patch_version, \"exported_hostname\", \"$1\", \"hostname\", \"(.*)\")",
+          "format": "table",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "D",
+          "useBackend": false
+        }
+      ],
+      "title": "Ansible Pings",
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Last Checked": {
+                "aggregations": [
+                  "allValues"
+                ],
+                "operation": "aggregate"
+              },
+              "Outage Start Time": {
+                "aggregations": [
+                  "last"
+                ],
+                "operation": "aggregate"
+              },
+              "Ping Result": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "aggregate"
+              },
+              "Value #A": {
+                "aggregations": [
+                  "allValues"
+                ],
+                "operation": "aggregate"
+              },
+              "Value #B": {
+                "aggregations": [
+                  "allValues"
+                ],
+                "operation": "aggregate"
+              },
+              "Value #C": {
+                "aggregations": [
+                  "allValues"
+                ],
+                "operation": "aggregate"
+              },
+              "exported_hostname": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "version": {
+                "aggregations": [
+                  "allValues"
+                ],
+                "operation": "aggregate"
+              }
+            }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "exported_hostname",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__ 1": true,
+              "exported_hostname 2": true,
+              "hostname 1": true,
+              "hostname 2": true,
+              "hostname 3": true,
+              "instance 1": true,
+              "instance 2": true,
+              "instance 3": true,
+              "ip 1": true,
+              "ip 2": true,
+              "ip 3": true,
+              "ip_address 1": true,
+              "ip_address 2": true,
+              "ip_address 3": true,
+              "job 1": true,
+              "job 2": true,
+              "job 3": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Time": "",
+              "Value #A": "Ping Result",
+              "Value #A (allValues)": "Ansible Ping",
+              "Value #B": "Last Checked",
+              "Value #B (allValues)": "Last Reported",
+              "Value #C": "Outage Start Time",
+              "Value #C (allValues)": "Outage Duration",
+              "exported_hostname": "Host Name",
+              "exported_hostname 3": "",
+              "job 2": "",
+              "version (allValues)": "Patch Version"
+            }
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "number",
+                "targetField": "Last Reported"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "Outage Duration"
+              },
+              {
+                "destinationType": "string",
+                "targetField": "Patch Version"
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ],
+      "transparent": true,
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mimir"
+      },
+      "description": "monitored services and disk usage",
+      "fieldConfig": {
+        "defaults": {
+          "fieldMinMax": false,
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "index": 0,
+                  "text": "Stopped"
+                },
+                "1": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "Running"
+                }
+              },
+              "type": "value"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 22,
+        "w": 3,
+        "x": 5,
+        "y": 0
+      },
+      "id": 5,
+      "options": {
+        "autoSizeColumns": true,
+        "autoSizePolygons": true,
+        "autoSizeRows": false,
+        "compositeConfig": {
+          "animationSpeed": "2500",
+          "composites": [
+            {
+              "clickThrough": "",
+              "clickThroughCustomTarget": "",
+              "clickThroughCustomTargetEnabled": false,
+              "clickThroughOpenNewTab": true,
+              "clickThroughSanitize": true,
+              "displayMode": "all",
+              "enabled": true,
+              "isTemplated": false,
+              "label": "Composite-2",
+              "metrics": [
+                {
+                  "ID": "29e65330-5da4-4bfa-9d93-6f8de0ab392b",
+                  "order": 3,
+                  "seriesMatch": "/^.*vmfws.*$/i"
+                },
+                {
+                  "ID": "f6f58891-51da-4b92-87d6-c4aa6c74f6cz",
+                  "alias": "VMFWS",
+                  "order": 1,
+                  "seriesMatch": "VMFWS-down"
+                }
+              ],
+              "name": "VMFWS-ALL",
+              "order": 2,
+              "showComposite": true,
+              "showMembers": false,
+              "showName": true,
+              "showTimestampEnabled": false,
+              "showTimestampFormat": "HH:mm:ss",
+              "showTimestampYOffset": 0,
+              "showValue": false
+            },
+            {
+              "clickThrough": "",
+              "clickThroughCustomTarget": "",
+              "clickThroughCustomTargetEnabled": false,
+              "clickThroughOpenNewTab": true,
+              "clickThroughSanitize": true,
+              "displayMode": "all",
+              "enabled": true,
+              "isTemplated": false,
+              "label": "Composite-3",
+              "metrics": [
+                {
+                  "ID": "16e00dd4-5213-4278-884f-ea7a04685710",
+                  "order": 2,
+                  "seriesMatch": "/^.*vsql.*$/i"
+                },
+                {
+                  "ID": "f6f58891-51da-4b92-87d6-c4aa6c74f6cx",
+                  "alias": "VSQL",
+                  "order": 1,
+                  "seriesMatch": "VSQL-down"
+                }
+              ],
+              "name": "VSQL",
+              "order": 3,
+              "showComposite": true,
+              "showMembers": false,
+              "showName": true,
+              "showTimestampEnabled": false,
+              "showTimestampFormat": "HH:mm:ss",
+              "showTimestampYOffset": 0,
+              "showValue": false
+            },
+            {
+              "clickThrough": "",
+              "clickThroughCustomTarget": "",
+              "clickThroughCustomTargetEnabled": false,
+              "clickThroughOpenNewTab": true,
+              "clickThroughSanitize": true,
+              "displayMode": "all",
+              "enabled": true,
+              "isTemplated": false,
+              "label": "Composite-4",
+              "metrics": [
+                {
+                  "ID": "6970fbac-384f-4b81-acca-5b431c89bf4d",
+                  "order": 3,
+                  "seriesMatch": "/^viewcon.*$/i"
+                },
+                {
+                  "ID": "f6f58891-51da-4b92-87d6-c4aa6c74f6cy",
+                  "alias": "VIEWCON",
+                  "order": 1,
+                  "seriesMatch": "VIEWCON-down"
+                }
+              ],
+              "name": "VIEWCON",
+              "order": 4,
+              "showComposite": true,
+              "showMembers": false,
+              "showName": true,
+              "showTimestampEnabled": false,
+              "showTimestampFormat": "HH:mm:ss",
+              "showTimestampYOffset": 0,
+              "showValue": false
+            },
+            {
+              "clickThrough": "",
+              "clickThroughCustomTarget": "",
+              "clickThroughCustomTargetEnabled": false,
+              "clickThroughOpenNewTab": true,
+              "clickThroughSanitize": true,
+              "displayMode": "all",
+              "enabled": true,
+              "isTemplated": false,
+              "label": "Composite-5",
+              "metrics": [
+                {
+                  "ID": "c4267757-8592-423c-85e4-d1f7f21930d5",
+                  "order": 2,
+                  "seriesMatch": "/^gped.*$/i"
+                },
+                {
+                  "ID": "f6f58891-51da-4b92-87d6-c4aa6c74f6cw",
+                  "alias": "VADER-down",
+                  "order": 1,
+                  "seriesMatch": "VADER-down"
+                }
+              ],
+              "name": "VADER",
+              "order": 5,
+              "showComposite": true,
+              "showMembers": false,
+              "showName": true,
+              "showTimestampEnabled": false,
+              "showTimestampFormat": "HH:mm:ss",
+              "showTimestampYOffset": 0,
+              "showValue": false
+            },
+            {
+              "clickThrough": "",
+              "clickThroughCustomTarget": "",
+              "clickThroughCustomTargetEnabled": false,
+              "clickThroughOpenNewTab": true,
+              "clickThroughSanitize": true,
+              "displayMode": "all",
+              "enabled": true,
+              "isTemplated": false,
+              "label": "Composite-6",
+              "metrics": [
+                {
+                  "ID": "5c8ac548-ab6a-41e8-b5b9-783293f3aa06",
+                  "order": 3,
+                  "seriesMatch": "/^.*vantage.*$/i"
+                },
+                {
+                  "ID": "f6f58891-51da-4b92-87d6-c4aa6c74f6cv",
+                  "alias": "VANTAGE-down",
+                  "order": 1,
+                  "seriesMatch": "VANTAGE-down"
+                }
+              ],
+              "name": "VANTAGE",
+              "order": 6,
+              "showComposite": true,
+              "showMembers": false,
+              "showName": true,
+              "showTimestampEnabled": false,
+              "showTimestampFormat": "HH:mm:ss",
+              "showTimestampYOffset": 0,
+              "showValue": false
+            },
+            {
+              "clickThrough": "",
+              "clickThroughCustomTarget": "",
+              "clickThroughCustomTargetEnabled": false,
+              "clickThroughOpenNewTab": true,
+              "clickThroughSanitize": true,
+              "displayMode": "all",
+              "enabled": true,
+              "isTemplated": false,
+              "label": "Composite-7",
+              "metrics": [
+                {
+                  "ID": "655bd272-85cd-4419-82cd-0913420f8550",
+                  "order": 3,
+                  "seriesMatch": "/^fmv.*$/i"
+                },
+                {
+                  "ID": "f6f58891-51da-4b92-87d6-c4aa6c74f6ca",
+                  "alias": "FMV-down",
+                  "order": 1,
+                  "seriesMatch": "FMV-down"
+                }
+              ],
+              "name": "FMV",
+              "order": 7,
+              "showComposite": true,
+              "showMembers": false,
+              "showName": true,
+              "showTimestampEnabled": false,
+              "showTimestampFormat": "HH:mm:ss",
+              "showTimestampYOffset": 0,
+              "showValue": false
+            },
+            {
+              "clickThrough": "",
+              "clickThroughCustomTarget": "",
+              "clickThroughCustomTargetEnabled": false,
+              "clickThroughOpenNewTab": true,
+              "clickThroughSanitize": true,
+              "displayMode": "all",
+              "enabled": true,
+              "isTemplated": false,
+              "label": "Composite-8",
+              "metrics": [
+                {
+                  "ID": "1c5a0ac4-78e6-47aa-8d64-3725c3f056ab",
+                  "order": 2,
+                  "seriesMatch": "/^enterprise.*$/i"
+                },
+                {
+                  "ID": "f6f58891-51da-4b92-87d6-c4aa6c74f6cu",
+                  "alias": "ENT-CA-down",
+                  "order": 1,
+                  "seriesMatch": "ENT-CA-down"
+                }
+              ],
+              "name": "ENT-CA",
+              "order": 8,
+              "showComposite": true,
+              "showMembers": false,
+              "showName": true,
+              "showTimestampEnabled": false,
+              "showTimestampFormat": "HH:mm:ss",
+              "showTimestampYOffset": 0,
+              "showValue": false
+            },
+            {
+              "clickThrough": "",
+              "clickThroughCustomTarget": "",
+              "clickThroughCustomTargetEnabled": false,
+              "clickThroughOpenNewTab": true,
+              "clickThroughSanitize": true,
+              "displayMode": "all",
+              "enabled": true,
+              "isTemplated": false,
+              "label": "Composite-10",
+              "metrics": [
+                {
+                  "ID": "66160e39-554e-4c48-9e7f-704d25a46b6b",
+                  "order": 6,
+                  "seriesMatch": "/^aess.*$/i"
+                },
+                {
+                  "ID": "f6f58891-51da-4b92-87d6-c4aa6c74f6ct",
+                  "alias": "AESS-down",
+                  "order": 1,
+                  "seriesMatch": "AESS-down"
+                }
+              ],
+              "name": "AESS",
+              "order": 10,
+              "showComposite": true,
+              "showMembers": false,
+              "showName": true,
+              "showTimestampEnabled": false,
+              "showTimestampFormat": "HH:mm:ss",
+              "showTimestampYOffset": 0,
+              "showValue": false
+            },
+            {
+              "clickThrough": "",
+              "clickThroughCustomTarget": "",
+              "clickThroughCustomTargetEnabled": false,
+              "clickThroughOpenNewTab": true,
+              "clickThroughSanitize": true,
+              "displayMode": "all",
+              "enabled": true,
+              "isTemplated": false,
+              "label": "AESS Copy",
+              "metrics": [
+                {
+                  "ID": "689ea29e-773d-4f6f-9673-7eb3646da8ee",
+                  "order": 4,
+                  "seriesMatch": "/^vnia1.*$/i"
+                },
+                {
+                  "ID": "2b813a07-5092-4369-a947-e46aa7b196c3",
+                  "order": 1,
+                  "seriesMatch": "/^vnia2.*$/i"
+                },
+                {
+                  "ID": "f6f58891-51da-4b92-87d6-c4aa6c74f6cs",
+                  "alias": "VNIA1-down",
+                  "order": 1,
+                  "seriesMatch": "VNIA1-down"
+                },
+                {
+                  "ID": "f6f58891-51da-4b92-87d6-c4aa6c74f6cr",
+                  "alias": "VNIA2-down",
+                  "order": 1,
+                  "seriesMatch": "VNIA2-down"
+                }
+              ],
+              "name": "VNIA 1 & 2",
+              "order": 11,
+              "showComposite": true,
+              "showMembers": false,
+              "showName": true,
+              "showTimestampEnabled": false,
+              "showTimestampFormat": "HH:mm:ss",
+              "showTimestampYOffset": 0,
+              "showValue": false
+            },
+            {
+              "clickThrough": "",
+              "clickThroughCustomTarget": "",
+              "clickThroughCustomTargetEnabled": false,
+              "clickThroughOpenNewTab": true,
+              "clickThroughSanitize": true,
+              "displayMode": "all",
+              "enabled": true,
+              "isTemplated": false,
+              "label": "VNIA 4",
+              "metrics": [
+                {
+                  "ID": "b7dc3702-3e89-45da-97a4-6507cf9630c2",
+                  "order": 3,
+                  "seriesMatch": "/^vnia4.*$/i"
+                },
+                {
+                  "ID": "f6f58891-51da-4b92-87d6-c4aa6c74f6cq",
+                  "alias": "VNIA4-down",
+                  "order": 1,
+                  "seriesMatch": "VNIA4-down"
+                }
+              ],
+              "name": "VNIA 4",
+              "order": 12,
+              "showComposite": true,
+              "showMembers": false,
+              "showName": true,
+              "showTimestampEnabled": false,
+              "showTimestampFormat": "HH:mm:ss",
+              "showTimestampYOffset": 0,
+              "showValue": false
+            },
+            {
+              "clickThrough": "",
+              "clickThroughCustomTarget": "",
+              "clickThroughCustomTargetEnabled": false,
+              "clickThroughOpenNewTab": true,
+              "clickThroughSanitize": true,
+              "displayMode": "all",
+              "enabled": true,
+              "isTemplated": false,
+              "label": "NET-CFG",
+              "metrics": [
+                {
+                  "ID": "8e240aaa-0346-4fbf-b770-6f059b0f3ce8",
+                  "order": 2,
+                  "seriesMatch": "/^netcfg.*$/i"
+                },
+                {
+                  "ID": "f6f58891-51da-4b92-87d6-c4aa6c74f6co",
+                  "alias": "NET-CFG-down",
+                  "order": 1,
+                  "seriesMatch": "NET-CFG-down"
+                }
+              ],
+              "name": "NET-CFG",
+              "order": 13,
+              "showComposite": true,
+              "showMembers": false,
+              "showName": true,
+              "showTimestampEnabled": false,
+              "showTimestampFormat": "HH:mm:ss",
+              "showTimestampYOffset": 0,
+              "showValue": false
+            },
+            {
+              "clickThrough": "",
+              "clickThroughCustomTarget": "",
+              "clickThroughCustomTargetEnabled": false,
+              "clickThroughOpenNewTab": true,
+              "clickThroughSanitize": true,
+              "displayMode": "all",
+              "enabled": true,
+              "isTemplated": false,
+              "label": "Composite-12",
+              "metrics": [
+                {
+                  "ID": "979b191b-4a50-4845-9180-f82b1fd3cc9b",
+                  "order": 0,
+                  "seriesMatch": "/^controller.*$/i"
+                },
+                {
+                  "ID": "f6f58891-51da-4b92-87d6-c4aa6c74f6cn",
+                  "alias": "AAP-down",
+                  "order": 1,
+                  "seriesMatch": "AAP-down"
+                }
+              ],
+              "name": "AAP 2.5",
+              "order": 12,
+              "showComposite": true,
+              "showMembers": false,
+              "showName": true,
+              "showTimestampEnabled": false,
+              "showTimestampFormat": "HH:mm:ss",
+              "showTimestampYOffset": 0,
+              "showValue": false
+            },
+            {
+              "clickThrough": "",
+              "clickThroughCustomTarget": "",
+              "clickThroughCustomTargetEnabled": false,
+              "clickThroughOpenNewTab": true,
+              "clickThroughSanitize": true,
+              "displayMode": "all",
+              "enabled": true,
+              "isTemplated": false,
+              "label": "Composite-13",
+              "metrics": [
+                {
+                  "ID": "9d10f8f7-b3ec-4958-9937-0f9ba62ebea8",
+                  "order": 0,
+                  "seriesMatch": "/^grafana.*$/i"
+                },
+                {
+                  "ID": "f6f58891-51da-4b92-87d6-c4aa6c74f6cm",
+                  "alias": "Grafana-down",
+                  "order": 1,
+                  "seriesMatch": "Grafana-down"
+                }
+              ],
+              "name": "Grafana",
+              "order": 13,
+              "showComposite": true,
+              "showMembers": false,
+              "showName": true,
+              "showTimestampEnabled": false,
+              "showTimestampFormat": "HH:mm:ss",
+              "showTimestampYOffset": 0,
+              "showValue": false
+            },
+            {
+              "clickThrough": "",
+              "clickThroughCustomTarget": "",
+              "clickThroughCustomTargetEnabled": false,
+              "clickThroughOpenNewTab": true,
+              "clickThroughSanitize": true,
+              "displayMode": "all",
+              "enabled": true,
+              "isTemplated": false,
+              "label": "Composite-14",
+              "metrics": [
+                {
+                  "ID": "71835d8f-1e20-400f-97d4-4d71cdd849cf",
+                  "order": 0,
+                  "seriesMatch": "/^dc1.*$/i"
+                },
+                {
+                  "ID": "90c47211-4b5e-4ee5-b7d4-3c972c24770c",
+                  "order": 1,
+                  "seriesMatch": "/^dc2.*$/i"
+                },
+                {
+                  "ID": "fbb11b6d-46df-48e7-b40e-e659944db15b",
+                  "alias": "DC-down",
+                  "order": 2,
+                  "seriesMatch": "/^dc-down.*$/i"
+                }
+              ],
+              "name": "DC",
+              "order": 14,
+              "showComposite": true,
+              "showMembers": false,
+              "showName": true,
+              "showTimestampEnabled": false,
+              "showTimestampFormat": "HH:mm:ss",
+              "showTimestampYOffset": 0,
+              "showValue": false
+            },
+            {
+              "clickThrough": "",
+              "clickThroughCustomTarget": "",
+              "clickThroughCustomTargetEnabled": false,
+              "clickThroughOpenNewTab": false,
+              "clickThroughSanitize": false,
+              "displayMode": "all",
+              "enabled": true,
+              "isTemplated": false,
+              "label": "Composite-14",
+              "metrics": [
+                {
+                  "ID": "9f71243b-3242-4eeb-af3a-6d471d0ffe4f",
+                  "order": 0,
+                  "seriesMatch": "/^ans-syscon.*$/i"
+                },
+                {
+                  "ID": "fbb11b6d-46df-48e7-b40e-e659944db15r",
+                  "alias": "SYSCON-down",
+                  "order": 1,
+                  "seriesMatch": "/^ans-syscon-down.*$/i"
+                }
+              ],
+              "name": "SYSCON",
+              "order": 14,
+              "showComposite": true,
+              "showMembers": false,
+              "showName": true,
+              "showTimestampEnabled": false,
+              "showTimestampFormat": "HH:mm:ss",
+              "showTimestampYOffset": 0,
+              "showValue": false
+            }
+          ],
+          "enabled": true
+        },
+        "compositeGlobalAliasingEnabled": true,
+        "ellipseCharacters": 18,
+        "ellipseEnabled": false,
+        "globalAutoScaleFonts": true,
+        "globalClickthrough": "",
+        "globalClickthroughCustomTarget": "",
+        "globalClickthroughCustomTargetEnabled": false,
+        "globalClickthroughNewTabEnabled": true,
+        "globalClickthroughSanitizedEnabled": true,
+        "globalDecimals": 0,
+        "globalDisplayMode": "all",
+        "globalDisplayTextTriggeredEmpty": "OK",
+        "globalFillColor": "green",
+        "globalFontSize": 12,
+        "globalGradientsEnabled": true,
+        "globalOperator": "sum",
+        "globalPolygonBorderColor": "rgba(0, 0, 0, 0)",
+        "globalPolygonBorderSize": 2,
+        "globalPolygonSize": 25,
+        "globalRegexPattern": "",
+        "globalShape": "hexagon_pointed_top",
+        "globalShowTimestampEnabled": false,
+        "globalShowTimestampFontSize": 12,
+        "globalShowTimestampFormat": "YYYY-MM-DD HH:mm:ss",
+        "globalShowTimestampPosition": "below_value",
+        "globalShowTimestampYOffset": 0,
+        "globalShowTooltipColumnHeadersEnabled": false,
+        "globalShowValueEnabled": false,
+        "globalTextFontAutoColorEnabled": true,
+        "globalTextFontColor": "#000000",
+        "globalTextFontFamily": "Roboto",
+        "globalThresholdsConfig": [
+          {
+            "color": "#f53636",
+            "state": 2,
+            "value": 0
+          },
+          {
+            "color": "#299c46",
+            "state": 0,
+            "value": 1
+          },
+          {
+            "color": "#ed8128",
+            "state": 1,
+            "value": 80
+          },
+          {
+            "color": "#f53636",
+            "state": 2,
+            "value": 90
+          }
+        ],
+        "globalTooltipsEnabled": true,
+        "globalTooltipsFontFamily": "Roboto",
+        "globalTooltipsShowTimestampEnabled": false,
+        "globalTooltipsShowValueEnabled": true,
+        "globalUnitFormat": "short",
+        "layoutDisplayLimit": 100,
+        "layoutNumColumns": 8,
+        "layoutNumRows": 8,
+        "overrideConfig": {
+          "overrides": [
+            {
+              "alias": "",
+              "clickThrough": "",
+              "clickThroughCustomTarget": "",
+              "clickThroughCustomTargetEnabled": false,
+              "clickThroughOpenNewTab": true,
+              "clickThroughSanitize": true,
+              "colors": [
+                "#299c46",
+                "#ed8128",
+                "#f53636",
+                "#0a55a1"
+              ],
+              "decimals": "2",
+              "enabled": true,
+              "label": "disks zero",
+              "metricName": "/^.*\\ - [A-Z]:.*$/i",
+              "operatorName": "last",
+              "order": 0,
+              "prefix": "",
+              "showTimestampEnabled": false,
+              "showTimestampFormat": "HH:mm:ss",
+              "showTimestampYOffset": 0,
+              "suffix": "",
+              "thresholds": [],
+              "unitFormat": "percent"
+            },
+            {
+              "alias": "",
+              "clickThrough": "",
+              "clickThroughCustomTarget": "",
+              "clickThroughCustomTargetEnabled": false,
+              "clickThroughOpenNewTab": true,
+              "clickThroughSanitize": true,
+              "colors": [
+                "#299c46",
+                "#ed8128",
+                "#f53636",
+                "#0a55a1"
+              ],
+              "decimals": "2",
+              "enabled": true,
+              "label": "disks zero Copy",
+              "metricName": "/^.*\\ - \\/.*$/i",
+              "operatorName": "last",
+              "order": 1,
+              "prefix": "",
+              "showTimestampEnabled": false,
+              "showTimestampFormat": "HH:mm:ss",
+              "showTimestampYOffset": 0,
+              "suffix": "",
+              "thresholds": [],
+              "unitFormat": "percent"
+            }
+          ]
+        },
+        "sortByDirection": 1,
+        "sortByField": "name",
+        "tooltipDisplayMode": "all",
+        "tooltipDisplayTextTriggeredEmpty": "OK",
+        "tooltipPrimarySortByField": "name",
+        "tooltipPrimarySortDirection": 1,
+        "tooltipSecondarySortByField": "name",
+        "tooltipSecondarySortDirection": 1
+      },
+      "pluginVersion": "2.1.14",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "windows_service_state{job=\"integrations/windows\", state=\"running\", instance=~\"DC1|DC2\", name=~\"dns|kdc|ntds|winrm\"}",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "{{instance}} - {{name}}",
+          "range": false,
+          "refId": "DC",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "absent(up{instance=~\"DC1|DC2\"}) == bool 0",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "DC-down",
+          "range": false,
+          "refId": "DC-down",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "windows_service_state{job=\"integrations/windows\", state=\"running\", instance=~\"VMFWS3|VMFWS4|VMFWS5\", name=~\"winrm\"}",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "{{instance}} - {{name}}",
+          "range": false,
+          "refId": "vmfws",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "absent(up{instance=~\"VMFWS3|VMFWS4|VMFWS5\"}) == bool 0",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "VMFWS-down",
+          "range": false,
+          "refId": "VMFWS-down",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "windows_service_state{job=\"integrations/windows\", state=\"running\", instance=~\"vsql\", name=~\"winrm|mssqlserver\"}",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "{{instance}} - {{name}}",
+          "range": false,
+          "refId": "vsql",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "absent(up{instance=~\"vsql\"}) == bool 0",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "VSQL-down",
+          "range": false,
+          "refId": "VSQL-down",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "windows_service_state{job=\"integrations/windows\", state=\"running\", instance=~\"viewcon\", name=~\"winrm|vgauthservice|wsbroker\"}",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "{{instance}} - {{name}}",
+          "range": false,
+          "refId": "viewcon",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "absent(up{instance=~\"viewcon\"}) == bool 0",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "VIEWCON-down",
+          "range": false,
+          "refId": "VIEWCON-down",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "windows_service_state{job=\"integrations/windows\", state=\"running\", instance=~\"GPED-SVR-V1\", name=~\"winrm|mysql57\"}",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "{{instance}} - {{name}}",
+          "range": false,
+          "refId": "vader",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "absent(up{instance=~\"GPED-SVR-V1\"}) == bool 0",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "VADER-down",
+          "range": false,
+          "refId": "VADER-down",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "windows_service_state{job=\"integrations/windows\", state=\"running\", instance=~\"OGS-VANTAGE\", name=~\"winrm|vantage|mysql\"}",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "{{instance}} - {{name}}",
+          "range": false,
+          "refId": "vantage",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "absent(up{instance=~\"OGS-VANTAGE\"}) == bool 0",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "VANTAGE-down",
+          "range": false,
+          "refId": "VANTAGE-down",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "windows_service_state{job=\"integrations/windows\", state=\"running\", instance=~\"FMV\", name=~\"winrm|openfire|dhcpserver\"}",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "{{instance}} - {{name}}",
+          "range": false,
+          "refId": "FMV",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "absent(up{instance=~\"FMV\"}) == bool 0",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "FMV-down",
+          "range": false,
+          "refId": "FMV-down",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "windows_service_state{job=\"integrations/windows\", state=\"running\", instance=~\"ENTERPRISE-CA\", name=~\"winrm|certsvc\"}",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "{{instance}} - {{name}}",
+          "range": false,
+          "refId": "ENT-CA",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "absent(up{instance=~\"ENTERPRISE-CA\"}) == bool 0",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "ENT-CA-down",
+          "range": false,
+          "refId": "ENT-CA-down",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "windows_service_state{job=\"integrations/windows\", state=\"running\", instance=~\"ANS-SYSCON\", name=~\"winrm\"}",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "{{instance}} - {{name}}",
+          "range": false,
+          "refId": "ANS-SYSCON",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "absent(up{instance=~\"ANS-SYSCON\"}) == bool 0",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "ANS-SYSCON-down",
+          "range": false,
+          "refId": "ANS-SYSCON-down",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "windows_service_state{job=\"integrations/windows\", instance=~\"AESS\", name=~\"winrm|mcafeeapachesrv|mcafeeeventparsersrv|mcafeetomcatsrv5100|mssql\\\\$essepo|sqltelemetry\\\\$essepo\", state=\"running\"}",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "{{instance}} - {{name}}",
+          "range": false,
+          "refId": "AESS",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "absent(up{instance=~\"AESS\"}) == bool 0",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "AESS-down",
+          "range": false,
+          "refId": "AESS-down",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "node_systemd_unit_state{instance=~\"vnia1.j114.army.mil|vnia2.j114.army.mil|vnia4.j114.army.mil|netcfgsvr1.j114.army.mil|controller1|grafana\", name=~\"frr.service|sshd.service|pimd.service|jCon.service\", state=\"active\"}",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "{{instance}} - {{name}}",
+          "range": false,
+          "refId": "linux",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "absent(up{instance=~\"vnia1.j114.army.mil|vnia2.j114.army.mil\"}) == bool 0",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "VNIA1-down",
+          "range": false,
+          "refId": "VNIA1-down",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "absent(up{instance=~\"vnia2.j114.army.mil\"}) == bool 0",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "VNIA2-down",
+          "range": false,
+          "refId": "VNIA2-down",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "absent(up{instance=~\"vnia4.j114.army.mil\"}) == bool 0",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "VNIA4-down",
+          "range": false,
+          "refId": "VNIA4-down",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "absent(up{instance=~\"controller1\"}) == bool 0",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "AAP-down",
+          "range": false,
+          "refId": "AAP-down",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "absent(up{instance=~\"grafana\"}) == bool 0",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "GRAFANA-down",
+          "range": false,
+          "refId": "GRAFANA-down",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "100 * (1 - (node_filesystem_avail_bytes{mountpoint!~'^(/run|/boot|/boot/efi|/sys|/proc|/dev|/snap)(/|$)',fstype!='tmpfs'} / node_filesystem_size_bytes{mountpoint!~'^(/run|/boot|/boot/efi|/sys|/proc|/dev|/snap)(/|$)',fstype!='tmpfs'}))",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "{{instance}} - {{mountpoint}}",
+          "range": false,
+          "refId": "linux volumes"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "clamp_min(100 * (1 - (windows_logical_disk_free_bytes{job=\"integrations/windows\", volume=~\"[A-Z]:\"} / windows_logical_disk_size_bytes{job=\"integrations/windows\", volume=~\"[A-Z]:\"})), 1.1)",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "{{instance}} - {{volume}}",
+          "range": false,
+          "refId": "windows drives",
+          "useBackend": false
+        }
+      ],
+      "title": "Services and Disk usage",
+      "transparent": true,
+      "type": "grafana-polystat-panel"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mimir"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds",
+            "seriesBy": "last"
+          },
+          "custom": {
+            "axisBorderShow": true,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisGridShow": true,
+            "axisLabel": "",
+            "axisPlacement": "left",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "scheme",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 2,
+          "fieldMinMax": false,
+          "links": [],
+          "mappings": [],
+          "min": 0,
+          "noValue": "-",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green"
+              },
+              {
+                "color": "green",
+                "value": 5
+              },
+              {
+                "color": "super-light-green",
+                "value": 15
+              },
+              {
+                "color": "#EF843C",
+                "value": 25
+              },
+              {
+                "color": "super-light-orange",
+                "value": 35
+              },
+              {
+                "color": "super-light-red",
+                "value": 45
+              },
+              {
+                "color": "light-red",
+                "value": 55
+              },
+              {
+                "color": "dark-red",
+                "value": 65
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 21,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "alertThreshold": true,
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "avg by(instance) (rate(node_cpu_seconds_total{mode!=\"idle\", instance=~\"$server\"}[5m])) * 100",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "interval": "",
+          "intervalFactor": 1,
+          "legendFormat": "{{host}}",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "avg by(instance) (rate(windows_cpu_time_total{mode!=\"idle\", instance=~\"$server\"}[5m])) * 100",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "interval": "",
+          "intervalFactor": 1,
+          "legendFormat": "{{instance}}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "CPU Usage by Host",
+      "transparent": true,
+      "type": "timeseries"
+    }
+  ],
+  "preload": false,
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "All",
+          "value": [
+            "$__all"
+          ]
+        },
+        "definition": "query_result(group by (instance) ({__name__=~\"node_cpu_seconds_total|windows_cpu_time_total\"}))",
+        "includeAll": true,
+        "label": "server",
+        "multi": true,
+        "name": "server",
+        "options": [],
+        "query": {
+          "qryType": 3,
+          "query": "query_result(group by (instance) ({__name__=~\"node_cpu_seconds_total|windows_cpu_time_total\"}))",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "/instance=\"([^\"]+)\"/",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": [
+            "pong"
+          ],
+          "value": [
+            "pong"
+          ]
+        },
+        "datasource": {
+          "type": "yesoreyeram-infinity-datasource",
+          "uid": "jsondata"
+        },
+        "definition": "",
+        "description": "",
+        "hide": 2,
+        "includeAll": false,
+        "label": "ansible_ping",
+        "multi": true,
+        "name": "ansible_ping",
+        "options": [],
+        "query": {
+          "infinityQuery": {
+            "columns": [
+              {
+                "selector": "hostname",
+                "text": "",
+                "type": "string"
+              },
+              {
+                "selector": "ansible_ping",
+                "text": "",
+                "type": "string"
+              },
+              {
+                "selector": "last_updated",
+                "text": "",
+                "type": "timestamp"
+              },
+              {
+                "selector": "last_responded",
+                "text": "",
+                "type": "timestamp"
+              }
+            ],
+            "computed_columns": [
+              {
+                "selector": "",
+                "text": "",
+                "type": "string"
+              }
+            ],
+            "filters": [],
+            "format": "table",
+            "parser": "backend",
+            "refId": "variable",
+            "root_selector": "",
+            "source": "url",
+            "type": "json",
+            "url": "http://localhost:8088/post/get_ansible_pings_sqlite.php",
+            "url_options": {
+              "data": "",
+              "method": "GET"
+            }
+          },
+          "query": "",
+          "queryType": "infinity"
+        },
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "1747970250",
+          "value": "1747970250"
+        },
+        "definition": "query_result(time())",
+        "hide": 2,
+        "label": "now",
+        "name": "now",
+        "options": [],
+        "query": {
+          "qryType": 3,
+          "query": "query_result(time())",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "/",
+          "value": "/"
+        },
+        "definition": "label_values(node_filesystem_size_bytes{mountpoint!~\"^/(run|sys|proc|dev|boot/efi|boot)(/|$)\", fstype!=\"tmpfs\"},mountpoint)",
+        "hide": 2,
+        "label": "linuxvolumes",
+        "name": "linuxvolumes",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(node_filesystem_size_bytes{mountpoint!~\"^/(run|sys|proc|dev|boot/efi|boot)(/|$)\", fstype!=\"tmpfs\"},mountpoint)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "OGS - Main Status",
+  "uid": "aek4t09s628zkb",
+  "version": 14
+}

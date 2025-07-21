@@ -1,0 +1,41 @@
+
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+{
+  "manifestVersion": "2.0.0",
+  "signatureType": "community",
+  "signedByOrg": "benjaminfourmaux",
+  "signedByOrgName": "Tech Ben",
+  "plugin": "benjaminfourmaux-status-panel",
+  "version": "1.0.0",
+  "time": 1736975057444,
+  "keyId": "7e4d0c6a708866e7",
+  "files": {
+    "LICENSE": "89d2808a51f347a3c1dd38d456addb5cd5afd9c251e75776681f235f8a8c6e2e",
+    "CHANGELOG.md": "029538fa498dc635b796f4b220519da367fe46dcb97158e2da703d7eb711b183",
+    "plugin.json": "85dc45c05b39eeb438cdac585b57418afdfb5fce9108a982d75eccb275544201",
+    "module.js.map": "2896f10fd4b6e12f51c0609a91c16fc26c802d0eb30e8c93dd6210c44724b111",
+    "README.md": "ad4c62b0693a6f90cbaabe15b5b331967053878d301df3f69c1a1cb1a6af2d67",
+    "img/doc-options.png": "d3579146111774846e2438c1eeb9a5d8a9470e79f67d69b98449acd600cac15c",
+    "img/doc-thresholds.png": "f6f0eb95d5e4ddd46fb7b7717adbf61cb69c63fa4dcc0352f419c2fa7f1b79ec",
+    "img/multi-panes.PNG": "6f0cb3fdc3812d2aeb56ffe98cbdf536775fb47d59d174e5bae928a8f2eb4a68",
+    "img/doc-overridden_fields.png": "fd5260f7c4bd45a3befda717616a9ac3a0302269a17a116f459e4ccd51dc6599",
+    "img/doc-display_options.png": "7a110b9448710b3e38691ed426e4fe98ac3212a8348822439af0fc2dfc574870",
+    "img/screenshots/multi-card.png": "5b058c4ff8724d14d2c56abb48efad5050b324526a66ecd9dba035f6757b32ff",
+    "img/screenshots/card-variants.png": "03475284cc4410af6b1586f95f61480f2ccc8f421ed732a2f731e71849c568de",
+    "img/logo.svg": "8477aea2bd7840ac2fd3dcdc3ea2ddea75838819073f9a43ccb1f6b922dbdfcb",
+    "module.js": "275cc2402e71368f7a90e91ed710571812315eeb7cb5f0d65db8ecb3a9fc1ef6"
+  }
+}
+-----BEGIN PGP SIGNATURE-----
+Version: OpenPGP.js v4.10.11
+Comment: https://openpgpjs.org
+
+wrkEARMKAAYFAmeIItEAIQkQfk0ManCIZucWIQTzOyW2kQdOhGNlcPN+TQxq
+cIhm59ndAgkA1HCXpxbPqLmUqK6QLBWgihX5CLpHNErhg88g05iSGATk1PcT
+v+md04Y9HaEz8HqxpwKmmyIOGMX8L9okAuJz8TECCQB1E8tcCpy0cf0dWshT
+SegatQKkxkzk4xy6RTs2v1OdkDYRSDvzS4ur581m+tZUcVhK/LUkmegVQ9FL
+W2S5LMSJdA==
+=r4HG
+-----END PGP SIGNATURE-----

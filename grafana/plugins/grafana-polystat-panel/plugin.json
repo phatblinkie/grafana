@@ -1,0 +1,84 @@
+{
+  "buildMode": "production",
+  "dependencies": {
+    "grafanaDependency": "\u003e=9.5.0",
+    "grafanaVersion": "9.5.x",
+    "plugins": []
+  },
+  "id": "grafana-polystat-panel",
+  "info": {
+    "author": {
+      "name": "Grafana Project",
+      "url": "https://github.com/grafana/grafana-polystat-panel"
+    },
+    "build": {
+      "time": 1737639574872,
+      "repo": "https://github.com/grafana/grafana-polystat-panel",
+      "branch": "main",
+      "hash": "a0098a59c832e522351b6e6c457ec71b9bd58d90",
+      "build": 529
+    },
+    "description": "Polystat panel for Grafana",
+    "keywords": [
+      "hexbin",
+      "honeycomb",
+      "panel"
+    ],
+    "links": [
+      {
+        "name": "Project site",
+        "url": "https://github.com/grafana/grafana-polystat-panel"
+      },
+      {
+        "name": "Apache-2.0",
+        "url": "https://github.com/grafana/grafana-polystat-panel/blob/master/LICENSE.md"
+      }
+    ],
+    "logos": {
+      "large": "img/polystat.svg",
+      "small": "img/polystat.svg"
+    },
+    "screenshots": [
+      {
+        "name": "Showcase",
+        "path": "img/screenshots/polystat-v2-agent-all-visible.png"
+      },
+      {
+        "name": "Animation",
+        "path": "img/screenshots/polystat-v2-composite-animated.gif"
+      },
+      {
+        "name": "Options",
+        "path": "img/screenshots/polystat-v2-global-all.png"
+      },
+      {
+        "name": "Hexagons",
+        "path": "img/screenshots/polystat-v2-shape-hexagon-pointed-top.png"
+      },
+      {
+        "name": "Squares",
+        "path": "img/screenshots/polystat-v2-shape-square.png"
+      },
+      {
+        "name": "Circles",
+        "path": "img/screenshots/polystat-v2-shape-circle.png"
+      },
+      {
+        "name": "Overrides",
+        "path": "img/screenshots/polystat-v2-overrides-with-thresholds.png"
+      },
+      {
+        "name": "Tooltips",
+        "path": "img/screenshots/polystat-v2-tooltips-all.png"
+      },
+      {
+        "name": "Composites",
+        "path": "img/screenshots/polystat-v2-composite-with-tooltip.png"
+      }
+    ],
+    "updated": "2025-01-23",
+    "version": "2.1.14"
+  },
+  "name": "Polystat",
+  "type": "panel"
+}

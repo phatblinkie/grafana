@@ -1,0 +1,6 @@
+GRAFANA_VERSION="12.0.1"
+LOKI_VERSION="3.5.1"
+MIMIR_VERSION="2.16.0"
+NIFI_VERSION="tsb_py"
+#gitlab is not on ironbank
+GITLAB_VERSION="17.11.6-ce.0"

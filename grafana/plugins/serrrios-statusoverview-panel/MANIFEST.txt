@@ -1,0 +1,37 @@
+
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+{
+  "manifestVersion": "2.0.0",
+  "signatureType": "community",
+  "signedByOrg": "serrrios",
+  "signedByOrgName": "serrrios",
+  "plugin": "serrrios-statusoverview-panel",
+  "version": "0.0.4",
+  "time": 1688505167273,
+  "keyId": "7e4d0c6a708866e7",
+  "files": {
+    "module.js.map": "e69ae2b8ddc73eb27e538d131fce8e3e85722b3f4c9c3b42b4269d8686f2a2b3",
+    "README.md": "6efe8f7ddec334adca6ffc5bea5e822dcc4da234f7a9c48cd8cf7a1fd270ba4e",
+    "CHANGELOG.md": "fa5fe44bf7894e2121b42521a327d7d55d114f1b8fcf25de1df7db1b7d445c33",
+    "LICENSE": "c5accbbd8546e94c34aed24afe689a617627d18eed5a6c48277e48db57c23851",
+    "module.js": "c52d077e670ab3f373ea9d6b86d0f16ca9f79ed19eff0a7b23b73d2071fb0cc6",
+    "img/preview_transparent.png": "fc7a1ee87b056cbe426d5d89e6121c59490bd7ad8942be723e5256361d6fc50e",
+    "img/blink.gif": "80e912a0a851ec14dba7792b0ff13daa51f153108fe5457fc499a54341d71b54",
+    "img/logo.svg": "4dc01970f2be46f76e650d38ec29a3c43dca7123607767f6ed740a8b1877ec73",
+    "img/logo.svg.bak": "1defc6f7e585c67657bcfd8fddc599ee7dfa82f8674413f49fa274c2cd453ec6",
+    "plugin.json": "fa184582005132a7fc2717800a3c389f33e872e322e69b82f73838fe535c3009"
+  }
+}
+-----BEGIN PGP SIGNATURE-----
+Version: OpenPGP.js v4.10.10
+Comment: https://openpgpjs.org
+
+wrkEARMKAAYFAmSki08AIQkQfk0ManCIZucWIQTzOyW2kQdOhGNlcPN+TQxq
+cIhm5xZ0AgkBGFo0BbcInxfEpZerLTzQG+XyUclaDwRy2YYBkjLHSEtArpN+
+Mu+DM4RM3D4VzHLsgIWnDUGPt+MJnNnsOG5wHXUCCQFm/hb0KWBXTkM/tXXM
+RI7o/1JiVomq4/Fbg0wh+p0nLIg9ac/AymzdknjYk6Df5OEam/kElbOy50x3
+t/dGzY7GWg==
+=Wibg
+-----END PGP SIGNATURE-----
