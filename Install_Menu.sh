@@ -840,6 +840,87 @@ copy_source_directories() {
     run_with_sudo chmod 0777 /mission-share/podman/containers/gitlab/{logs,config,data}
 }
 
+
+build_and_start_pod_gitlab() {
+    echo -e "\n[USER] Building and Starting GITLAB Pod..."
+
+    # Stop existing pod if running
+    echo "Stopping gitlab pod if running..."
+    podman pod stop gitlab
+
+    #sadly, with all this customization, we have to 777 some dirs
+    podman unshare chmod -v 0777 /mission-share/podman/containers/gitlab
+    podman unshare chmod -v 0777 /mission-share/podman/containers/gitlab/{config,logs,data}
+
+    # Load versions
+    . versions.txt
+
+    #gather desired ip to bind to
+    hostname -i
+    read -p "Please enter IP address to use: " IP_ADDRESS
+    # Display the entered IP address
+    echo "You entered: $IP_ADDRESS"
+
+    # Generate and deploy pod YAML
+    echo "Generating new pod YAML from template..."
+    cd gitlab-pod || return 1
+    cat gitlab-pod.yml.template | \
+        sed "s|IP_ADDRESS|$IP_ADDRESS|g" | \
+        sed "s|GITLAB_VERSION|$GITLAB_VERSION|g" > gitlab-pod.yml
+
+    #echo "Building pod with --replace..."
+    #podman play kube --replace ogs-pod.yml
+
+    echo "Creating Systemd files to manage pod with systemd..."
+    # Create Quadlet directory
+     mkdir -p ~/.config/containers/systemd
+     mkdir -p ~/.config/systemd/user
+
+    #set vm overcommit for redis in sysctl
+    run_with_sudo sysctl vm.overcommit_memory=1
+    #now make it permanent
+    if echo "$SUDO_PASSWORD" | sudo -S sh -c "echo 'vm.overcommit_memory=1' > /etc/sysctl.d/99-redis.conf" 2>/dev/null; then
+       echo "Successfully appended to /etc/sysctl.d/99-redis.conf."
+    else
+       echo "Error: Failed to append to /etc/sysctl.d/99-redis.conf"
+       return 1
+    fi
+
+
+    # Copy Quadlet file (ensure podman unshare if needed for permissions)
+    podman unshare cp -f gitlab-pod.yml /mission-share/podman/containers/gitlab-pod.yml
+    echo "Starting initial gitlab pod..."
+    podman kube play --replace /mission-share/podman/containers/gitlab-pod.yml
+    echo "Generating systemd service files for podman pod gitlab..."
+    podman generate systemd --name --files gitlab
+    mv -fv *.service ~/.config/systemd/user/
+
+    # Reload systemd to generate service
+    systemctl --user daemon-reload
+
+    #stopping pod if it exists
+    echo "Stopping existing gitlab pod if running..."
+    podman pod stop gitlab
+
+    # Start the service with systemd
+    echo "Enabling and starting gitlab-ogs.service..."
+    systemctl --user enable --now pod-gitlab.service
+
+
+    sleep 3
+    podman ps -a
+    echo "Gitlab Pod created and started successfully!"
+    podman ps
+
+    # Enable linger - was previously done in system settings, but ensure it here too
+    loginctl enable-linger
+
+    echo -e "\nAll done! You should now have a running pod with:"
+    echo "- Gitlab on port 2200, 9443, 8088"
+    # change back to installer dir
+    cd $OLDPWD
+}
+
 build_and_start_pod() {
     echo -e "\n[USER] Building and Starting Pod..."
 
@@ -974,7 +1055,8 @@ show_menu() {
     echo " Choose based off network available "
     echo " 8i. Pull Container Images - Internet required"
     echo " 8n. Install Packaged Images - No Internet required"
-    echo " 9. Build and Start Pod"
+    echo " 9. Build and Start (graf,loki,mimir,nifi) Pod"
+    echo " 9g. Build and Start Gitlab Pod"
     echo ""
     echo " 10i. Run ALL Operations - Internet required"
     echo " 10n. Run ALL Operations - No Internet required"
@@ -999,6 +1081,7 @@ run_all_operations() {
     echo -e "\n[Running non-privileged operations]"
     pull_container_images
     build_and_start_pod
+    build_and_start_pod_gitlab
 
     echo -e "\nAll operations completed!"
 }
@@ -1018,6 +1101,7 @@ run_all_operations_disconnected() {
 
     install_tarball_images
     build_and_start_pod
+    build_and_start_pod_gitlab
 
     echo -e "\nAll operations completed!"
 }
@@ -1043,6 +1127,7 @@ while true; do
         8i) pull_container_images ;;
         8n) install_tarball_images ;;
         9) build_and_start_pod ;;
+	9g) build_and_start_pod_gitlab ;;
         10i) run_all_operations ;;
         10n) run_all_operations_disconnected ;;
         0)
