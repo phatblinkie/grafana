@@ -6,6 +6,8 @@ metadata:
     io.podman.annotations.userns: keep-id
 spec:
   restartPolicy: Never
+  networks:
+    - name: podman-default-kube-network
   volumes:
     - name: gitlab-config
       hostPath:
@@ -19,17 +21,14 @@ spec:
       hostPath:
         path: /mission-share/podman/containers/gitlab/logs
         type: DirectoryOrCreate
+    - name: resolv-conf
+      hostPath:
+        path: /mission-share/podman/containers/configs/resolv.conf
+        type: File
   containers:
     - name: gitlab
       image: localhost/gitlab-ce-custom:17.11.6-ce.0
       hostname: 192.168.10.211
-      dnsConfig:
-        nameservers:
-          - 192.168.10.200
-          - 8.8.8.8
-        searches:
-          - phat.lab
-          - army.mil
       securityContext:
         runAsUser: 0
         runAsGroup: 0
@@ -56,6 +55,8 @@ spec:
           mountPath: /var/opt/gitlab:Z
         - name: gitlab-logs
           mountPath: /var/log/gitlab:Z
+        - name: resolv-conf
+          mountPath: /etc/resolv.conf
       ports:
         - containerPort: 443
           hostPort: 9443
