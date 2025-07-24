@@ -1064,13 +1064,216 @@ check_success() {
     fi
 }
 
+#!/bin/bash
+
+#!/bin/bash
+
+# Function to stop a pod by name
+stop_pod_named() {
+    local podname="$1"
+
+    # Sanity check: Ensure podname is not empty
+    if [[ -z "$podname" ]]; then
+        echo "ERROR: No pod name provided to stop_pod_named" >&2
+        return 1
+    fi
+
+    echo "INFO: Checking if pod '$podname' exists"
+    if ! podman pod exists "$podname" &>/dev/null; then
+        echo "ERROR: Pod '$podname' does not exist" >&2
+        return 1
+    fi
+
+    echo "INFO: Stopping pod '$podname' with 'podman pod stop -t 60 $podname'"
+    if ! podman pod stop -t 60 "$podname" &>/dev/null; then
+        echo "ERROR: Failed to stop pod '$podname'" >&2
+        return 1
+    fi
+
+    echo "SUCCESS: Pod '$podname' stopped successfully"
+    return 0
+}
+
+# Function to stop and delete a pod by name
+stop_and_delete_pod() {
+    local podname="$1"
+
+    # Sanity check: Ensure podname is not empty
+    if [[ -z "$podname" ]]; then
+        echo "ERROR: No pod name provided to stop_and_delete_pod" >&2
+        return 1
+    fi
+
+    echo "INFO: Beginning stop and delete process for pod '$podname'"
+
+    # Check if the pod-$podname service exists
+    echo "INFO: Checking if 'pod-$podname' service exists"
+    if ! systemctl --user list-units --type=service --all | grep -q "pod-$podname"; then
+        echo "INFO: 'pod-$podname' service does not exist, proceeding to podman operations"
+    else
+        # Check if the pod-$podname service is active
+        echo "INFO: Checking if 'pod-$podname' service is active"
+        if systemctl --user is-active --quiet "pod-$podname"; then
+            echo "INFO: 'pod-$podname' service is active, stopping with 'systemctl --user stop pod-$podname'"
+            if ! systemctl --user stop "pod-$podname"; then
+                echo "ERROR: Failed to stop 'pod-$podname' service" >&2
+                return 1
+            fi
+            echo "SUCCESS: 'pod-$podname' service stopped successfully"
+        else
+            echo "INFO: 'pod-$podname' service is not active"
+        fi
+
+        # Disable the pod-$podname service
+        echo "INFO: Disabling 'pod-$podname' service with 'systemctl --user disable pod-$podname'"
+        if ! systemctl --user disable "pod-$podname" &>/dev/null; then
+            echo "ERROR: Failed to disable 'pod-$podname' service" >&2
+            return 1
+        fi
+        echo "SUCCESS: 'pod-$podname' service disabled successfully"
+    fi
+
+    # Stop the pod
+    if ! stop_pod_named "$podname"; then
+        echo "ERROR: Failed to stop pod '$podname'" >&2
+        return 1
+    fi
+
+    # Delete the pod
+    echo "INFO: Deleting pod '$podname' with 'podman pod rm --force $podname'"
+    if ! podman pod rm --force "$podname" &>/dev/null; then
+        echo "ERROR: Failed to delete pod '$podname'" >&2
+        return 1
+    fi
+
+    echo "SUCCESS: Pod '$podname' deleted successfully"
+    return 0
+}
+
+# Function to clean up pod and container service files
+cleanup_pod_services() {
+    local podname="$1"
+    local systemd_user_dir="$HOME/.config/systemd/user"
+    local pod_service="pod-$podname.service"
+
+    # Sanity check: Ensure podname is not empty
+    if [[ -z "$podname" ]]; then
+        echo "ERROR: No pod name provided to cleanup_pod_services" >&2
+        return 1
+    fi
+
+    echo "INFO: Beginning cleanup of service files for pod '$podname'"
+
+    # Check if the pod-$podname service exists
+    echo "INFO: Checking if '$pod_service' exists"
+    if ! systemctl --user list-units --type=service --all | grep -q "$pod_service"; then
+        echo "INFO: '$pod_service' does not exist, proceeding to file cleanup"
+    else
+        # Check if the pod-$podname service is active
+        echo "INFO: Checking if '$pod_service' is active"
+        if systemctl --user is-active --quiet "$pod_service"; then
+            echo "INFO: '$pod_service' is active, stopping with 'systemctl --user stop $pod_service'"
+            if ! systemctl --user stop "$pod_service"; then
+                echo "ERROR: Failed to stop '$pod_service'" >&2
+                return 1
+            fi
+            echo "SUCCESS: '$pod_service' stopped successfully"
+        else
+            echo "INFO: '$pod_service' is not active"
+        fi
+
+        # Disable the pod-$podname service
+        echo "INFO: Disabling '$pod_service' with 'systemctl --user disable $pod_service'"
+        if ! systemctl --user disable "$pod_service" &>/dev/null; then
+            echo "ERROR: Failed to disable '$pod_service'" >&2
+            return 1
+        fi
+        echo "SUCCESS: '$pod_service' disabled successfully"
+    fi
+
+    # Get container service dependencies dynamically
+    echo "INFO: Retrieving dependencies for '$pod_service' using 'systemctl --user list-dependencies'"
+    local wants_services
+    wants_services=$(systemctl --user list-dependencies "$pod_service" | grep -E "container-$podname-.*\.service" | sed 's/.*├─//;s/.*└─//')
+    if [[ -z "$wants_services" ]]; then
+        echo "INFO: No container service dependencies found for '$pod_service'"
+    else
+        echo "INFO: Found container service dependencies: $wants_services"
+    fi
+
+    # Stop associated container services (but do not disable, as they are not enabled)
+    while IFS= read -r service; do
+        if [[ -z "$service" ]]; then
+            continue
+        fi
+        echo "INFO: Checking if '$service' exists"
+        if ! systemctl --user list-units --type=service --all | grep -q "$service"; then
+            echo "INFO: '$service' does not exist, skipping"
+            continue
+        fi
+
+        echo "INFO: Checking if '$service' is active"
+        if systemctl --user is-active --quiet "$service"; then
+            echo "INFO: '$service' is active, stopping with 'systemctl --user stop $service'"
+            if ! systemctl --user stop "$service"; then
+                echo "ERROR: Failed to stop '$service'" >&2
+                return 1
+            fi
+            echo "SUCCESS: '$service' stopped successfully"
+        else
+            echo "INFO: '$service' is not active"
+        fi
+    done <<< "$wants_services"
+
+    # Remove pod service file
+    echo "INFO: Removing service file '$systemd_user_dir/$pod_service'"
+    if [[ -f "$systemd_user_dir/$pod_service" ]]; then
+        if ! rm -f "$systemd_user_dir/$pod_service"; then
+            echo "ERROR: Failed to remove '$systemd_user_dir/$pod_service'" >&2
+            return 1
+        fi
+        echo "SUCCESS: '$pod_service' removed successfully"
+    else
+        echo "INFO: '$pod_service' file does not exist, skipping"
+    fi
+
+    # Remove container service files
+    while IFS= read -r service; do
+        if [[ -z "$service" ]]; then
+            continue
+        fi
+        echo "INFO: Removing service file '$systemd_user_dir/$service'"
+        if [[ -f "$systemd_user_dir/$service" ]]; then
+            if ! rm -f "$systemd_user_dir/$service"; then
+                echo "ERROR: Failed to remove '$systemd_user_dir/$service'" >&2
+                return 1
+            fi
+            echo "SUCCESS: '$service' removed successfully"
+        else
+            echo "INFO: '$service' file does not exist, skipping"
+        fi
+    done <<< "$wants_services"
+
+    # Reload systemd daemon
+    echo "INFO: Reloading systemd user daemon with 'systemctl --user daemon-reload'"
+    if ! systemctl --user daemon-reload; then
+        echo "ERROR: Failed to reload systemd user daemon" >&2
+        return 1
+    fi
+    echo "SUCCESS: Systemd user daemon reloaded successfully"
+
+    echo "SUCCESS: Cleanup of service files for pod '$podname' completed successfully"
+    return 0
+}
+
+
 # ---------- Menu System ----------
 
 show_menu() {
     clear
-    echo "===================================================="
-    echo " Monitoring Stack Deployment Tool - Ver. $script_version"
-    echo "===================================================="
+    echo "========================================================================"
+    echo "       Monitoring Stack Deployment Tool - Ver. $script_version"
+    echo "========================================================================"
     echo " Privileged Operations:"
     echo " 1. Configure System Settings"
     echo " 2. Provision Disk for Podman Data"
@@ -1079,61 +1282,33 @@ show_menu() {
     echo " 5. Configure NFS Server"
     echo " 6. Install and Configure Nginx Proxy"
     echo " 7. Configure Firewall"
-    echo "===================================================="
-    echo " Non-Privileged Operations: "
-    echo " Choose based off network available "
-    echo " 8i. Pull Container Images - Internet required"
-    echo " 8n. Install Packaged Images - No Internet required"
-    echo " 9. Build and Start (graf,loki,mimir,nifi) Pod"
-    echo " 9g. Build and Start Gitlab Pod"
     echo ""
-    echo " 10i. Run ALL Operations - Internet required"
-    echo " 10n. Run ALL Operations - No Internet required"
-    echo " 0. Exit"
-    echo "===================================================="
+    echo "======================== Image Imports ================================="
+    echo "     NOTE: Choose based off networking available "
+    echo " 8i) Pull Container Images - Internet required"
+    echo " 8n) Install Packaged Images - No Internet required"
+    echo ""
+    echo "========================Pod Options====================================="
+    echo " 9) Build and Start (graf,loki,mimir,nifi) Pod"
+    echo " 9g) Build and Start Gitlab Pod"
+    echo ""
+    echo " 0) Exit"
+    echo ""
+    echo "===================== Un-Install Options ==============================="
+    echo " u1) Stop and Delete OGS (glam) pod"
+    echo " u2) Stop and Delete GITLAB pod"
+    echo " u3c) Clear out all container data files on /mission-share"
+    echo "      -- This will leave the images only"
+    echo " u3a) Completely clear out all files and images on /mission-share"
+    echo " u4) Remove secondary disk from fstab and unmount"
+    echo " u4) Clear out NFS server exports file"
+    echo " u5) Remove Firewall rules"
+    echo " u6) podman system reset - removes all podman images, volumes, containers"
+    echo "     -- This does not delete container files in /mission share"
+    echo "     -- But it will remove containers and images and pods"
+    echo " NUKE-IT) Removes all data, basically all the options above in one step"
 }
 
-run_all_operations() {
-    echo -e "\n=== Running All Operations ==="
-
-    # Run root operations
-    echo -e "\n[Running privileged operations]"
-    configure_system_settings
-    provision_disk
-    copy_source_directories
-    generate_ssl_keys
-    create_and_share_nfs
-    install_nginx
-    configure_firewall
-
-    # Run user operations
-    echo -e "\n[Running non-privileged operations]"
-    pull_container_images
-    build_and_start_pod
-    build_and_start_pod_gitlab
-
-    echo -e "\nAll operations completed!"
-}
-
-run_all_operations_disconnected() {
-    echo -e "\n=== Running All Operations ==="
-
-    # Run root operations
-    echo -e "\n[Running privileged operations]"
-    configure_system_settings
-    provision_disk
-    copy_source_directories
-    generate_ssl_keys
-    create_and_share_nfs
-    install_nginx
-    configure_firewall
-
-    install_tarball_images
-    build_and_start_pod
-    build_and_start_pod_gitlab
-
-    echo -e "\nAll operations completed!"
-}
 
 # ---------- Main Execution ----------
 
@@ -1143,7 +1318,7 @@ get_sudo_password
 # Interactive menu mode
 while true; do
     show_menu
-    read -p "Enter your choice (0-8): " choice
+    read -p "Enter your choice: " choice
 
     case $choice in
 	1) configure_system_settings ;;
@@ -1157,8 +1332,32 @@ while true; do
         8n) install_tarball_images ;;
         9) build_and_start_pod ;;
 	9g) build_and_start_pod_gitlab ;;
-        10i) run_all_operations ;;
-        10n) run_all_operations_disconnected ;;
+        u1)
+            if stop_and_delete_pod "ogs"; then
+                echo "INFO: Successfully stopped and deleted pod 'ogs'"
+            else
+                echo "ERROR: Failed to stop and delete pod 'ogs'" >&2
+            fi
+            if cleanup_pod_services "ogs"; then
+                echo "INFO: Successfully cleaned up services for pod 'ogs'"
+            else
+                echo "ERROR: Failed to clean up services for pod 'ogs'" >&2
+            fi
+            ;;
+        u2)
+            if stop_and_delete_pod "gitlab"; then
+                echo "INFO: Successfully stopped and deleted pod 'gitlab'"
+            else
+                echo "ERROR: Failed to stop and delete pod 'gitlab'" >&2
+            fi
+            if cleanup_pod_services "gitlab"; then
+                echo "INFO: Successfully cleaned up services for pod 'gitlab'"
+            else
+                echo "ERROR: Failed to clean up services for pod 'gitlab'" >&2
+            fi
+            ;;
+	u1d) stop_and_delete_pod "ogs" ;;
+	u2d) stop_and_delete_pod "gitlab" ;;
         0)
             echo "Exiting. Have a nice day!"
             exit 0

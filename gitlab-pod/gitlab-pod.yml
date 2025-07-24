@@ -25,6 +25,7 @@ spec:
       hostPath:
         path: /mission-share/podman/containers/configs/resolv.conf
         type: File
+
   containers:
     - name: gitlab
       image: localhost/gitlab-ce-custom:17.11.6-ce.0
