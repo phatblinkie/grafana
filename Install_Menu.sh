@@ -1,6 +1,12 @@
 #!/bin/bash
 
 script_version="1.0.0"
+#do not allow to run as root
+if (( $EUID == 0 )); then
+  echo "This script must not be run as root, run as normal user that will manage the containers. 'miadmin?'"
+  exit 1
+fi
+
 # Integrated Monitoring Stack Deployment Tool
 # Combines both privileged (root) and non-privileged (user) operations
 # Always requests sudo password at start and uses it when needed
@@ -537,8 +543,11 @@ configure_firewall() {
         ["HTTP"]="80/tcp"
         ["HTTPs"]="443/tcp"
         ["Grafana"]="3000/tcp"
-        ["Mimir"]="3100/tcp"
-        ["Loki"]="9009/tcp"
+        ["Loki"]="3100/tcp"
+        ["Mimir"]="9009/tcp"
+	["Nifi-ssl"]="8443/tcp"
+	["Nifi-3200"]="3200/tcp"
+	["Nifi-9092"]="9092/tcp"
 	["Gitlab-ssl"]="9443/tcp"
 	["Gitlab-http"]="8088/tcp"
 	["Gitlab-ssh"]="2200/tcp"
@@ -551,7 +560,9 @@ configure_firewall() {
             echo "Opening port $port for $service..."
             run_with_sudo firewall-cmd --permanent --add-port="$port"
             check_success "Failed to open port $port" || return 1
-        fi
+    	else
+	    echo "Port: $port for $service is already configured. Skipping."
+	fi
     done
 
     echo "Adding NFS service"
@@ -989,10 +1000,9 @@ build_and_start_pod() {
 
     echo -e "\nAll done! You should now have a running pod with:"
     echo "- Grafana on port 3000 (admin/admin)"
-    echo "- Loki on port 9009"
-    echo "- Mimir on port 3100"
+    echo "- Mimir on port 9009"
+    echo "- Loki on port 3100"
     echo "- Nifi on port 8443,8080,3200,9092"
-    echo "- Gitlab on port 2200, 9443, 8088"
     echo "- Parent NGINX proxy on port 80 and 443"
     # change back to installer dir
     cd $OLDPWD
