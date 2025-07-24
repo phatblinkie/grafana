@@ -23,6 +23,13 @@ spec:
     - name: gitlab
       image: localhost/gitlab-ce-custom:GITLAB_VERSION
       hostname: IP_ADDRESS
+      dnsConfig:
+        nameservers:
+          - 192.168.10.200
+          - 8.8.8.8
+        searches:
+          - phat.lab
+          - army.mil
       securityContext:
         runAsUser: 0
         runAsGroup: 0
