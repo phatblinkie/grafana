@@ -7,6 +7,25 @@ if (( $EUID == 0 )); then
   exit 1
 fi
 
+
+
+#check to make sure rsync, and podman are installed
+    if ! command -v rsync &> /dev/null; then
+        echo "Error: rsync is required but not installed. Please install it first." >&2
+        return 1
+    fi
+
+    if ! command -v podman &> /dev/null; then
+        echo "Error: podman is required but not installed. Please install it first." >&2
+        return 1
+    fi
+
+    if ! command -v git-lfs &> /dev/null; then
+	#not likely, since it probably was needed to pull the repo anyway, 
+        echo "Error: git-lfs is required but not installed. Please install it first." >&2
+        return 1
+    fi
+
 # Integrated Monitoring Stack Deployment Tool
 # Combines both privileged (root) and non-privileged (user) operations
 # Always requests sudo password at start and uses it when needed
