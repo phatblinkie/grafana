@@ -1076,6 +1076,30 @@ copy_source_directories() {
     echo "SUCCESS: Source directory copying completed"
 }
 
+# Function to validate an IP address
+validate_ip() {
+    local ip=$1
+    # Regex for IPv4 address
+    if [[ $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+        IFS='.' read -r -a octets <<< "$ip"
+        for octet in "${octets[@]}"; do
+            if [[ $octet -gt 255 || $octet -lt 0 ]]; then
+                return 1
+            fi
+        done
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to get unique non-loopback IPv4 addresses
+get_ip_addresses() {
+    # Use 'ip addr show' to list IP addresses, filter for inet, exclude loopback (127.0.0.1)
+    ip addr show | grep 'inet ' | awk '{print $2}' | cut -d'/' -f1 | grep -v '^127\.' | sort -u
+}
+
+
 build_and_start_pod_gitlab() {
     echo "INFO: Building and starting Gitlab pod"
 
@@ -1121,13 +1145,61 @@ build_and_start_pod_gitlab() {
         return 1
     fi
 
+    # Check if 'ip' command is available
+    if ! command -v ip >/dev/null 2>&1; then
+        echo "ERROR: 'ip' command not found. Please install iproute2."
+        exit 1
+    fi
 
+    # Get list of unique IP addresses
+    mapfile -t ip_list < <(get_ip_addresses)
 
-    # Gather desired IP to bind to
-    hostname -i
-    echo "INFO: Please enter IP address to use:"
-    read -r IP_ADDRESS
-    echo "INFO: You entered: $IP_ADDRESS"
+    # Check if any IP addresses were found
+    if [ ${#ip_list[@]} -eq 0 ]; then
+        echo "ERROR: No valid IP addresses found on this system."
+        exit 1
+    fi
+
+    # Display menu
+    echo "Select ip for Gitlab to bind to"
+    echo "Available IP addresses:"
+    for i in "${!ip_list[@]}"; do
+        echo "$((i+1)). ${ip_list[i]}"
+    done
+    echo "$(( ${#ip_list[@]} + 1 )). Enter a custom IP address"
+
+    # Prompt for selection
+    while true; do
+        echo -n "Please select an option (1-$(( ${#ip_list[@]} + 1 ))): "
+        read -r choice
+
+        # Validate choice is a number
+        if ! [[ "$choice" =~ ^[0-9]+$ ]]; then
+            echo "ERROR: Please enter a valid number."
+            continue
+        fi
+
+        # Check if choice is within range
+        if [ "$choice" -ge 1 ] && [ "$choice" -le "${#ip_list[@]}" ]; then
+            IP_ADDRESS="${ip_list[$((choice-1))]}"
+            echo "INFO: You selected IP address: $IP_ADDRESS"
+            break
+        elif [ "$choice" -eq $(( ${#ip_list[@]} + 1 )) ]; then
+            echo -n "INFO: Please enter a custom IP address: "
+            read -r IP_ADDRESS
+            if validate_ip "$IP_ADDRESS"; then
+                echo "INFO: You entered: $IP_ADDRESS"
+                break
+            else
+                echo "ERROR: Invalid IP address format. Please try again."
+            fi
+        else
+            echo "ERROR: Invalid option. Please select a number between 1 and $(( ${#ip_list[@]} + 1 ))."
+        fi
+    done
+
+    # Use $IP_ADDRESS in the rest of your script
+    echo "Proceeding with IP address: $IP_ADDRESS"
 
     # Generate and deploy pod YAML
     echo "INFO: Generating new GitLab pod YAML from template"
@@ -1616,6 +1688,22 @@ cleanup_pod_services() {
     return 0
 }
 
+empty_nfs_exports() {
+
+   #its sad that the run_with_sudo does not seem to be able to handle >> or >    
+   local temp_file=$(mktemp)
+   echo "" > "$temp_file"
+
+   # Append the temporary file to /etc/exports using sudo
+   echo "INFO: Removing content from /etc/exports"
+   if echo "$SUDO_PASSWORD" | sudo -S sh -c "cat '$temp_file' > /etc/exports" 2>/dev/null; then
+      echo "SUCCESS: Appended to /etc/exports"
+   else
+      echo "ERROR: failed to empty the /etc/exports file"
+   fi
+}
+
+
 # ---------- Menu System ----------
 
 show_menu() {
@@ -1703,7 +1791,7 @@ while true; do
                 echo "ERROR: Failed to clean up services for pod 'gitlab'" >&2
             fi
             ;;
-        u1d) stop_and_delete_pod "ogs" ;;
+        u4) empty_nfs_exports ;;
         u2d) stop_and_delete_pod "gitlab" ;;
         0)
             echo "INFO: Exiting. Have a nice day!"

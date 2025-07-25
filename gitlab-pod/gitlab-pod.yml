@@ -29,7 +29,7 @@ spec:
   containers:
     - name: gitlab
       image: localhost/gitlab-ce-custom:17.11.6-ce.0
-      hostname: 192.168.10.211
+      hostname: 0.0.0.0
       securityContext:
         runAsUser: 0
         runAsGroup: 0
@@ -44,7 +44,7 @@ spec:
         # Optional: Try GITLAB_OMNIBUS_CONFIG
         - name: GITLAB_OMNIBUS_CONFIG
           value: |
-            external_url 'http://192.168.10.211:8088'
+            external_url 'http://0.0.0.0:8088'
             nginx['listen_port'] = 80
             nginx['listen_address'] = ['0.0.0.0']
             gitlab_rails['initial_root_password'] = '0o9i8u7y)O(I*U&Y'
