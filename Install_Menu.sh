@@ -1,30 +1,27 @@
 #!/bin/bash
 
 script_version="1.0.0"
-#do not allow to run as root
+# Do not allow to run as root
 if (( $EUID == 0 )); then
-  echo "This script must not be run as root, run as normal user that will manage the containers. 'miadmin?'"
-  exit 1
+ echo "ERROR: This script must not be run as root, run as normal user that will manage the containers. 'miadmin?'" >&2
+ exit 1
 fi
 
+# Check to make sure rsync, podman, and git-lfs are installed
+if ! command -v rsync &> /dev/null; then
+ echo "ERROR: rsync is required but not installed. Please install it first." >&2
+ exit 1
+fi
 
+if ! command -v podman &> /dev/null; then
+ echo "ERROR: podman is required but not installed. Please install it first." >&2
+ exit 1
+fi
 
-#check to make sure rsync, and podman are installed
-    if ! command -v rsync &> /dev/null; then
-        echo "Error: rsync is required but not installed. Please install it first." >&2
-        return 1
-    fi
-
-    if ! command -v podman &> /dev/null; then
-        echo "Error: podman is required but not installed. Please install it first." >&2
-        return 1
-    fi
-
-    if ! command -v git-lfs &> /dev/null; then
-	#not likely, since it probably was needed to pull the repo anyway, 
-        echo "Error: git-lfs is required but not installed. Please install it first." >&2
-        return 1
-    fi
+if ! command -v git-lfs &> /dev/null; then
+ echo "ERROR: git-lfs is required but not installed. Please install it first." >&2
+ exit 1
+fi
 
 # Integrated Monitoring Stack Deployment Tool
 # Combines both privileged (root) and non-privileged (user) operations
@@ -34,770 +31,926 @@ fi
 
 # Clear the sudo password variable on exit
 cleanup() {
-    unset SUDO_PASSWORD
-    # Clear sudo cache to ensure fresh prompt next time
-    sudo -k
+ unset SUDO_PASSWORD
+ # Clear sudo cache to ensure fresh prompt next time
+ sudo -k
 }
 trap cleanup EXIT
-
 
 # ---------- Improved Sudo Password Handling ----------
 
 get_sudo_password() {
-    # Clear any existing sudo credentials
-    sudo -k
+ # Clear any existing sudo credentials
+ sudo -k
 
-    echo "===================================================="
-    echo " Monitoring Stack Deployment Tool - Ver. $script_version"
-    echo "===================================================="
-    echo "This script requires root privileges for some operations."
+ echo "===================================================="
+ echo " Monitoring Stack Deployment Tool - Ver. $script_version"
+ echo "===================================================="
+ echo "INFO: This script requires root privileges for some operations."
 
-    # Loop until we get a valid sudo password
-    while true; do
-        echo "Please enter your sudo password to proceed:"
-        read -r -s SUDO_PASSWORD
+ # Loop until we get a valid sudo password
+ while true; do
+ echo "INFO: Please enter your sudo password to proceed:"
+ read -r -s SUDO_PASSWORD
+ echo
 
-        # Verify the password works by trying to list root directory
-        echo
-        echo -n "Verifying sudo access... "
-        if echo "$SUDO_PASSWORD" | sudo -S ls /root >/dev/null 2>&1; then
-            echo "OK"
-            break
-        else
-            echo "FAILED"
-            echo "Incorrect sudo password. Please try again."
-            unset SUDO_PASSWORD
-        fi
-    done
+ # Verify the password works by trying to list root directory
+ echo -n "INFO: Verifying sudo access... "
+ if echo "$SUDO_PASSWORD" | sudo -S ls /root >/dev/null 2>&1; then
+ echo "SUCCESS: Sudo access verified"
+ break
+ else
+ echo "ERROR: Incorrect sudo password. Please try again." >&2
+ unset SUDO_PASSWORD
+ fi
+ done
 
-    # Export the verified password
-    export SUDO_PASSWORD
-    echo
+ # Export the verified password
+ export SUDO_PASSWORD
+ echo
 }
 
 run_with_sudo() {
-    # Use the verified password with proper newline handling
-    echo -e "$SUDO_PASSWORD\n" | sudo -S "$@" 2>/dev/null
+ # Use the verified password with proper newline handling
+ echo -e "$SUDO_PASSWORD\n" | sudo -S "$@" 2>/dev/null
+}
+
+# ---------- Helper Functions ----------
+
+check_permission() {
+ local file="$1"
+ local expected_perm="$2"
+ local actual_perm=$(stat -c "%a" "$file" 2>/dev/null)
+
+ if [[ "$actual_perm" != "$expected_perm" ]]; then
+ echo "ERROR: $file has permissions $actual_perm (expected $expected_perm)" >&2
+ echo "INFO: Please run the system configuration first or manually fix with:" >&2
+ echo "sudo chmod $expected_perm $file" >&2
+ return 1
+ fi
+ echo "SUCCESS: $file permissions verified as $expected_perm"
+ return 0
+}
+
+safe_modify() {
+ local file="$1"
+ local action="$2"
+ local description="$3"
+
+ echo -n "INFO: ${description}... "
+ if [ -f "$file" ]; then
+ if eval "$action"; then
+ echo "SUCCESS: ${description} completed"
+ else
+ echo "ERROR: Failed to ${description}" >&2
+ return 1
+ fi
+ else
+ echo "INFO: Skipped (file not found)"
+ fi
+}
+
+check_success() {
+ if [ $? -ne 0 ]; then
+ echo "ERROR: $1" >&2
+ return 1
+ fi
+ echo "SUCCESS: $1 completed"
 }
 
 # ---------- Privileged Functions (run as root) ----------
 
-# Function to add NFS export and reload NFS
 create_and_share_nfs() {
-    echo "Configuring NFS..."
-    echo "Checking if NFS server is installed"
-    if [ $(rpm -qa|grep -c nfs-utils) -eq 0 ]
-    then
-	    echo "ERROR: NFS is not installed, run as root 'dnf install nfs-utils'"
-	    return 1
-    fi
-    # Define the NFS export line
-    local export_line="/mission-share/nfs *(rw,sync,no_subtree_check,no_root_squash)"
+ echo "INFO: Configuring NFS..."
+ echo "INFO: Checking if NFS server is installed"
+ if [ $(rpm -qa | grep -c nfs-utils) -eq 0 ]; then
+ echo "ERROR: NFS is not installed, run as root 'dnf install nfs-utils'" >&2
+ return 1
+ fi
+ echo "SUCCESS: NFS server is installed"
 
-    # Check if the export already exists
-    run_with_sudo mkdir -p /mission-share/nfs
-    run_with_sudo chmod 0777 /mission-share/nfs
-    if run_with_sudo grep -q "/mission-share/nfs" /etc/exports; then
-        echo "Warning: /mission-share already exists in /etc/exports. Please check manually."
-    else
-        # Create a temporary file with the export line
-        local temp_file=$(mktemp)
-        echo "$export_line" > "$temp_file"
+ # Define the NFS export line
+ local export_line="/mission-share/nfs *(rw,sync,no_subtree_check,no_root_squash)"
 
-        # Append the temporary file to /etc/exports using sudo
-        if echo "$SUDO_PASSWORD" | sudo -S sh -c "cat '$temp_file' >> /etc/exports" 2>/dev/null; then
-            echo "Successfully appended to /etc/exports."
-        else
-            echo "Error: Failed to append to /etc/exports."
-            rm -f "$temp_file"
-            return 1
-        fi
+ # Check if the export already exists
+ echo "INFO: Creating NFS directory /mission-share/nfs"
+ run_with_sudo mkdir -p /mission-share/nfs
+ run_with_sudo chmod 0777 /mission-share/nfs
+ if run_with_sudo grep -q "/mission-share/nfs" /etc/exports; then
+ echo "WARNING: /mission-share already exists in /etc/exports. Please check manually."
+ else
+ # Create a temporary file with the export line
+ local temp_file=$(mktemp)
+ echo "$export_line" > "$temp_file"
 
-        # Clean up the temporary file
-        rm -f "$temp_file"
-    fi
+ # Append the temporary file to /etc/exports using sudo
+ echo "INFO: Appending NFS export to /etc/exports"
+ if echo "$SUDO_PASSWORD" | sudo -S sh -c "cat '$temp_file' >> /etc/exports" 2>/dev/null; then
+ echo "SUCCESS: Appended to /etc/exports"
+ else
+ echo "ERROR: Failed to append to /etc/exports" >&2
+ rm -f "$temp_file"
+ return 1
+ fi
 
-    # Reload NFS exports
-    echo "Reloading NFS exports..."
-    if ! run_with_sudo exportfs -r || ! run_with_sudo exportfs; then
-        echo "Error: Failed to reload NFS exports."
-        return 1
-    fi
+ # Clean up the temporary file
+ rm -f "$temp_file"
+ fi
 
-    # Create NFS mission-share directories
-    echo "Creating NFS Mission-Share Directories..."
-    run_with_sudo mkdir -p /mission-share/nfs/tide/{ccads-in,ccads-out,arc-out,fuse-out,sceptre-in,sceptre-out,esa-out,eped-out,idm-in,fail,tmp,save,idm-in/save}
-    run_with_sudo mkdir -p /mission-share/nfs/audit_logs
+ # Reload NFS exports
+ echo "INFO: Reloading NFS exports"
+ if ! run_with_sudo exportfs -r || ! run_with_sudo exportfs; then
+ echo "ERROR: Failed to reload NFS exports" >&2
+ return 1
+ fi
+ echo "SUCCESS: NFS exports reloaded"
 
-    # Set permissions (adjust as needed for NFS)
-    echo "Setting permissions for NFS directories..."
-    run_with_sudo chmod -R 777 /mission-share/nfs
-    #run_with_sudo chown -R nobody:nogroup /mission-share
+ # Create NFS mission-share directories
+ echo "INFO: Creating NFS mission-share directories"
+ run_with_sudo mkdir -p /mission-share/nfs/tide/{ccads-in,ccads-out,arc-out,fuse-out,sceptre-in,sceptre-out,esa-out,eped-out,idm-in,fail,tmp,save,idm-in/save}
+ run_with_sudo mkdir -p /mission-share/nfs/audit_logs
 
-    # Enable and start NFS server
-    echo "Enabling and starting NFS server..."
-    if ! run_with_sudo systemctl enable --now nfs-server; then
-        echo "Error: Failed to enable or start nfs-server."
-        return 1
-    fi
+ # Set permissions
+ echo "INFO: Setting permissions for NFS directories"
+ run_with_sudo chmod -R 777 /mission-share/nfs
+ echo "SUCCESS: Permissions set for NFS directories"
 
-    echo "NFS configuration completed."
+ # Enable and start NFS server
+ echo "INFO: Enabling and starting NFS server"
+ if ! run_with_sudo systemctl enable --now nfs-server; then
+ echo "ERROR: Failed to enable or start nfs-server" >&2
+ return 1
+ fi
+ echo "SUCCESS: NFS server enabled and started"
+
+ echo "SUCCESS: NFS configuration completed"
 }
-
-
-# Example usage: Call the function with fqdn and optional directory path
-# rename_ssl "nifi.test" "/path/to/your/files"
 
 rename_ssl() {
-  # Define the fully qualified domain name (fqdn)
-  local fqdn="$1"
-  # Define the directory where the files are located (default to current directory)
-  local dir="${2:-.}"
+ local fqdn="$1"
+ local dir="${2:-.}"
 
-  # Check if fqdn is provided
-  if [[ -z "$fqdn" ]]; then
-    echo "Error: fqdn must be provided."
-    return 1
-  fi
+ # Check if fqdn is provided
+ if [[ -z "$fqdn" ]]; then
+ echo "ERROR: fqdn must be provided" >&2
+ return 1
+ fi
 
-  # Check if the directory exists
-  if [[ ! -d "$dir" ]]; then
-    echo "Error: Directory '$dir' does not exist."
-    return 1
-  fi
+ # Check if the directory exists
+ if [[ ! -d "$dir" ]]; then
+ echo "ERROR: Directory '$dir' does not exist" >&2
+ return 1
+ fi
 
-  # Normalize directory path to remove trailing slash
-  dir="${dir%/}"
+ # Normalize directory path to remove trailing slash
+ dir="${dir%/}"
 
-  # Initialize a flag to track if any files were found
-  local files_found=false
+ # Initialize a flag to track if any files were found
+ local files_found=false
 
-  # Escape dots in fqdn for proper pattern matching
-  local escaped_fqdn
-  escaped_fqdn=$(echo "$fqdn" | sed 's/\./\\./g')
+ # Escape dots in fqdn for proper pattern matching
+ local escaped_fqdn
+ escaped_fqdn=$(echo "$fqdn" | sed 's/\./\\./g')
 
+ # Use find to locate files matching the pattern
+ echo "INFO: Renaming SSL files for '$fqdn' in '$dir'"
+ while IFS= read -r file; do
+ if [[ -f "$file" ]]; then
+ local ext="${file##*.}"
+ mv "$file" "$dir/ssl.$ext"
+ echo "SUCCESS: Renamed $file to ssl.$ext"
+ files_found=true
+ fi
+ done < <(find "$dir" -maxdepth 1 -type f -name "$escaped_fqdn.*")
 
-  # Use find to locate files matching the pattern
-  while IFS= read -r file; do
-    # Check if the file exists (redundant but safe)
-    if [[ -f "$file" ]]; then
-      # Extract the extension
-      local ext="${file##*.}"
-      # Rename the file to ssl.<extension>
-      mv "$file" "$dir/ssl.$ext"
-      echo "Renamed $file to ssl.$ext"
-      files_found=true
-    fi
-  done < <(find "$dir" -maxdepth 1 -type f -name "$escaped_fqdn.*")
-
-  # Check if no files were found and print a warning
-  if [[ "$files_found" == false ]]; then
-    echo "Warning: No files matching '$fqdn.*' were found in '$dir'."
-    echo "Debug: Directory contents:"
-    ls -l "$dir"
-    return 1
-  fi
+ # Check if no files were found and print a warning
+ if [[ "$files_found" == false ]]; then
+ echo "WARNING: No files matching '$fqdn.*' were found in '$dir'"
+ echo "INFO: Debug: Directory contents:"
+ ls -l "$dir"
+ return 1
+ fi
+ echo "SUCCESS: SSL file renaming completed"
 }
 
-
-# Function to generate the ssl keys for the containers
 generate_ssl_keys() {
-    #fix perms on files and folder to current user
-    cd /mission-share/vast-ca/
-    echo "Creating SSL Certs"
-    certs="bash server-cert-gen.sh"
+ cd /mission-share/vast-ca/
+ echo "INFO: Creating SSL certificates"
 
-    hostname -i
-    read -p "Please enter msnsvr IP address: " msnsvr_ip
-    # Display the entered IP address
-    echo "You entered: $msnsvr_ip"
+ hostname -i
+ echo "INFO: Please enter msnsvr IP address:"
+ read -r msnsvr_ip
+ echo "INFO: You entered: $msnsvr_ip"
 
-    hostname
-    read -p "Please enter msnsvr FQDN (e.g. msnsvr.army.local): " msnsvr_fqdn
+ hostname
+ echo "INFO: Please enter msnsvr FQDN (e.g. msnsvr.army.local):"
+ read -r msnsvr_fqdn
+ echo "INFO: You entered: $msnsvr_fqdn"
 
-    # Display the entered fqdn
-    echo "You entered: $msnsvr_fqdn"
-    cat /etc/resolv.conf
-    read -p "Please enter domain name (e.g. army.local): " domain
-    echo "You entered: $domain"
-    local temp_file=$(mktemp)
-    echo "$msnsvr_ip      $msnsvr_fqdn       msnsvr     grafana     loki     mimir   nifi.$domain" > $temp_file
-    echo "$SUDO_PASSWORD" | sudo -S sh -c "cat '$temp_file' >> /etc/hosts"
+ cat /etc/resolv.conf
+ echo "INFO: Please enter domain name (e.g. army.local):"
+ read -r domain
+ echo "INFO: You entered: $domain"
 
-    certs="bash server-cert-gen.sh"
+ local temp_file=$(mktemp)
+ echo "$msnsvr_ip $msnsvr_fqdn msnsvr grafana loki mimir nifi.$domain" > "$temp_file"
+ echo "INFO: Updating /etc/hosts with msnsvr details"
+ if echo "$SUDO_PASSWORD" | sudo -S sh -c "cat '$temp_file' >> /etc/hosts" 2>/dev/null; then
+ echo "SUCCESS: Updated /etc/hosts"
+ else
+ echo "ERROR: Failed to update /etc/hosts" >&2
+ rm -f "$temp_file"
+ return 1
+ fi
+ rm -f "$temp_file"
 
-    # Creating Grafana Certs
-    echo -e "\nCreating Grafana certs...\n\n"
-    podman unshare chmod 0755 *.sh
-    # Use printf to send commands to create grafana certs
-    printf "grafana.$domain\n\nUS\nMaryland\nAPG\nFII\n3650\nsilkwave\n" | ./server-cert-gen.sh /mission-share/podman/containers/keys/grafana/
-    #copy them to generic naming, so its easier to template
-    rename_ssl "grafana.$domain" "/mission-share/podman/containers/keys/grafana/"
-    podman unshare chmod 0644 /mission-share/podman/containers/keys/grafana/ssl.*
+ # Creating Grafana Certs
+ echo "INFO: Creating Grafana certificates"
+ podman unshare chmod 0755 *.sh
+ printf "grafana.$domain\n\nUS\nMaryland\nAPG\nFII\n3650\nsilkwave\n" | ./server-cert-gen.sh /mission-share/podman/containers/keys/grafana/
+ if rename_ssl "grafana.$domain" "/mission-share/podman/containers/keys/grafana/"; then
+ podman unshare chmod 0644 /mission-share/podman/containers/keys/grafana/ssl.*
+ echo "SUCCESS: Grafana certificates created and renamed"
+ else
+ echo "ERROR: Failed to create or rename Grafana certificates" >&2
+ return 1
+ fi
 
-    # Creating Loki Certs
-    echo -e "\nCreating Loki certs...\n\n"
+ # Creating Loki Certs
+ echo "INFO: Creating Loki certificates"
+ printf "loki.$domain\n\nUS\nMaryland\nAPG\nFII\n3650\nsilkwave\n" | ./server-cert-gen.sh /mission-share/podman/containers/keys/loki/
+ if rename_ssl "loki.$domain" "/mission-share/podman/containers/keys/loki/"; then
+ podman unshare chmod 0644 /mission-share/podman/containers/keys/loki/ssl.*
+ echo "SUCCESS: Loki certificates created and renamed"
+ else
+ echo "ERROR: Failed to create or rename Loki certificates" >&2
+ return 1
+ fi
 
-    # Use printf to send commands to create loki certs
-    printf "loki.$domain\n\nUS\nMaryland\nAPG\nFII\n3650\nsilkwave\n" | ./server-cert-gen.sh /mission-share/podman/containers/keys/loki/
-    rename_ssl "loki.$domain" "/mission-share/podman/containers/keys/loki/"
-    podman unshare chmod 0644 /mission-share/podman/containers/keys/loki/ssl.*
+ # Creating Mimir Certs
+ echo "INFO: Creating Mimir certificates"
+ printf "mimir.$domain\n\nUS\nMaryland\nAPG\nFII\n3650\nsilkwave\n" | ./server-cert-gen.sh /mission-share/podman/containers/keys/mimir/
+ if rename_ssl "mimir.$domain" "/mission-share/podman/containers/keys/mimir/"; then
+ podman unshare chmod 0644 /mission-share/podman/containers/keys/mimir/ssl.*
+ echo "SUCCESS: Mimir certificates created and renamed"
+ else
+ echo "ERROR: Failed to create or rename Mimir certificates" >&2
+ return 1
+ fi
 
+ # Creating Nifi Certs
+ echo "INFO: Creating Nifi certificates"
+ printf "nifi.$domain\n\msnsvr.$domain\n\nUS\nMaryland\nAPG\nFII\n3650\nsilkwave\n" | ./server-cert-gen.sh /mission-share/podman/containers/keys/nifi/
+ if rename_ssl "nifi.$domain" "/mission-share/podman/containers/keys/nifi/"; then
+ podman unshare chmod 0644 /mission-share/podman/containers/keys/nifi/ssl.*
+ echo "SUCCESS: Nifi certificates created and renamed"
+ else
+ echo "ERROR: Failed to create or rename Nifi certificates" >&2
+ return 1
+ fi
 
-    # Creating Mimir Certs
-    echo -e "\nCreating Mimir certs...\n\n"
+ # Creating NGINX proxy certs
+ echo "INFO: Creating NGINX proxy certificates"
+ printf "$msnsvr_ip\n\\$msnsvr_ip\n\nUS\nMaryland\nAPG\nFII\n3650\nsilkwave\n" | ./server-cert-gen.sh /mission-share/podman/containers/keys/nginx/
+ if rename_ssl "$msnsvr_ip" "/mission-share/podman/containers/keys/nginx/"; then
+ echo "INFO: Copying NGINX certificates to /etc/pki/tls"
+ if run_with_sudo cp -v /mission-share/podman/containers/keys/nginx/ssl.* /etc/pki/tls/; then
+ echo "SUCCESS: NGINX certificates copied to /etc/pki/tls"
+ else
+ echo "ERROR: Failed to copy NGINX certificates to /etc/pki/tls" >&2
+ return 1
+ fi
+ echo "INFO: Fixing SELinux context on NGINX keys"
+ run_with_sudo semanage fcontext -a -t cert_t "/etc/pki/tls/ssl.crt"
+ run_with_sudo semanage fcontext -a -t cert_t "/etc/pki/tls/ssl.key"
+ run_with_sudo restorecon -v -F "/etc/pki/tls/ssl.crt"
+ run_with_sudo restorecon -v -F "/etc/pki/tls/ssl.key"
+ echo "SUCCESS: SELinux context fixed for NGINX keys"
+ else
+ echo "ERROR: Failed to create or rename NGINX certificates" >&2
+ return 1
+ fi
 
-    # Use printf to send commands to create mimir certs
-    printf "mimir.$domain\n\nUS\nMaryland\nAPG\nFII\n3650\nsilkwave\n" | ./server-cert-gen.sh /mission-share/podman/containers/keys/mimir/
-    rename_ssl "mimir.$domain" "/mission-share/podman/containers/keys/mimir/"
-    podman unshare chmod 0644 /mission-share/podman/containers/keys/mimir/ssl.*
-    # Creating Nifi Certs
-    echo -e "\nCreating Nifi certs...\n\n"
-
-    # Use printf to send commands to create nifi certs
-    printf "nifi.$domain\n\msnsvr.$domain\n\nUS\nMaryland\nAPG\nFII\n3650\nsilkwave\n" | ./server-cert-gen.sh /mission-share/podman/containers/keys/nifi/
-    rename_ssl "nifi.$domain" "/mission-share/podman/containers/keys/nifi/"
-    podman unshare chmod 0644 /mission-share/podman/containers/keys/nifi/ssl.*
-
-    # Use printf to send commands to create local nginx certs
-    echo -e "\nCreating NGINX proxy certs...\n\n"
-    printf "$msnsvr_ip\n\\$msnsvr_ip\n\nUS\nMaryland\nAPG\nFII\n3650\nsilkwave\n" | ./server-cert-gen.sh /mission-share/podman/containers/keys/nginx/
-    rename_ssl "$msnsvr_ip" "/mission-share/podman/containers/keys/nginx/"
-    #podman unshare chmod 0644 /mission-share/podman/containers/keys/nginx/ssl.*
-    run_with_sudo cp -v /mission-share/podman/containers/keys/nginx/ssl.* /etc/pki/tls/
-    echo "fixing selinux context on nginx keys"
-    run_with_sudo semanage fcontext -a -t cert_t "/etc/pki/tls/ssl.crt"
-    run_with_sudo semanage fcontext -a -t cert_t "/etc/pki/tls/ssl.key"
-    run_with_sudo restorecon -v -F "/etc/pki/tls/ssl.crt"
-    run_with_sudo restorecon -v -F "/etc/pki/tls/ssl.key"
-    # change back to installer dir
-    cd $OLDPWD
-
+ cd "$OLDPWD"
+ echo "SUCCESS: SSL certificate generation completed"
 }
 
-
-# Function to append to /etc/fstab
 append_to_fstab() {
-    local fstab_line="$1"
-    if run_with_sudo grep -q "/mission-share" /etc/fstab; then
-        echo "Warning: /mission-share already exists in /etc/fstab. Please check manually."
-    else
-        # Create a temporary file with the fstab line
-        local temp_file=$(mktemp)
-        echo "$fstab_line" > "$temp_file"
+ local fstab_line="$1"
+ if run_with_sudo grep -q "/mission-share" /etc/fstab; then
+ echo "WARNING: /mission-share already exists in /etc/fstab. Please check manually."
+ else
+ # Create a temporary file with the fstab line
+ local temp_file=$(mktemp)
+ echo "$fstab_line" > "$temp_file"
 
-        # Use sudo to append the temporary file to /etc/fstab
-        if echo "$SUDO_PASSWORD" | sudo -S sh -c "cat '$temp_file' >> /etc/fstab" 2>/dev/null; then
-            echo "Successfully appended to /etc/fstab."
-	    echo "Reloading systemctl"
-	    run_with_sudo systemctl daemon-reload
-        else
-            echo "Error: Failed to append to /etc/fstab."
-            rm -f "$temp_file"
-            return 1
-        fi
+ # Use sudo to append the temporary file to /etc/fstab
+ echo "INFO: Appending to /etc/fstab"
+ if echo "$SUDO_PASSWORD" | sudo -S sh -c "cat '$temp_file' >> /etc/fstab" 2>/dev/null; then
+ echo "SUCCESS: Appended to /etc/fstab"
+ echo "INFO: Reloading systemctl"
+ if run_with_sudo systemctl daemon-reload; then
+ echo "SUCCESS: Systemctl reloaded"
+ else
+ echo "ERROR: Failed to reload systemctl" >&2
+ return 1
+ fi
+ else
+ echo "ERROR: Failed to append to /etc/fstab" >&2
+ rm -f "$temp_file"
+ return 1
+ fi
 
-        # Clean up the temporary file
-        rm -f "$temp_file"
+ # Clean up the temporary file
+ rm -f "$temp_file"
 
-        # Verify the fstab syntax
-        if run_with_sudo mount -a >/dev/null 2>&1; then
-            echo "fstab syntax is valid."
-        else
-            echo "Error: Invalid fstab entry detected. Restoring backup."
-            run_with_sudo cp /etc/fstab.bak /etc/fstab 2>/dev/null
-            return 1
-        fi
-    fi
+ # Verify the fstab syntax
+ echo "INFO: Verifying fstab syntax"
+ if run_with_sudo mount -a >/dev/null 2>&1; then
+ echo "SUCCESS: fstab syntax is valid"
+ else
+ echo "ERROR: Invalid fstab entry detected. Restoring backup" >&2
+ if run_with_sudo cp /etc/fstab.bak /etc/fstab 2>/dev/null; then
+ echo "SUCCESS: Restored /etc/fstab from backup"
+ else
+ echo "ERROR: Failed to restore /etc/fstab from backup" >&2
+ return 1
+ fi
+ return 1
+ fi
+ fi
 }
 
 configure_system_settings() {
-    echo -e "\n[ROOT] Configuring System Settings..."
+ echo "INFO: Configuring system settings"
 
-    safe_modify "/etc/sysctl.d/99-sysctl.conf" \
-        "run_with_sudo sed -i 's/^user\.max_user_namespaces=0/user.max_user_namespaces=999999/' /etc/sysctl.d/99-sysctl.conf" \
-        "Modifying user.max_user_namespaces setting"
+ safe_modify "/etc/sysctl.d/99-sysctl.conf" \
+ "run_with_sudo sed -i 's/^user\.max_user_namespaces=0/user.max_user_namespaces=999999/' /etc/sysctl.d/99-sysctl.conf" \
+ "Modifying user.max_user_namespaces setting"
 
-    safe_modify "/usr/share/rhel/secrets/rhsm/syspurpose/syspurpose.json" \
-        "run_with_sudo chmod 0644 /usr/share/rhel/secrets/rhsm/syspurpose/syspurpose.json" \
-        "Setting permissions for syspurpose.json"
+ safe_modify "/usr/share/rhel/secrets/rhsm/syspurpose/syspurpose.json" \
+ "run_with_sudo chmod 0644 /usr/share/rhel/secrets/rhsm/syspurpose/syspurpose.json" \
+ "Setting permissions for syspurpose.json"
 
-    safe_modify "/etc/yum.repos.d/redhat.repo" \
-        "run_with_sudo chmod 0644 /etc/yum.repos.d/redhat.repo" \
-        "Setting permissions for redhat.repo"
+ safe_modify "/etc/yum.repos.d/redhat.repo" \
+ "run_with_sudo chmod 0644 /etc/yum.repos.d/redhat.repo" \
+ "Setting permissions for redhat.repo"
 
-    # Apply sysctl changes immediately
-    echo -e "\nApplying sysctl changes..."
-    run_with_sudo sysctl -p /etc/sysctl.d/99-sysctl.conf | grep 'user.max_user_namespaces = 999999'
-    check_success "Failed to apply sysctl changes" || return 1
+ # Apply sysctl changes immediately
+ echo "INFO: Applying sysctl changes"
+ if run_with_sudo sysctl -p /etc/sysctl.d/99-sysctl.conf | grep -q 'user.max_user_namespaces = 999999'; then
+ echo "SUCCESS: Sysctl changes applied"
+ else
+ echo "ERROR: Failed to apply sysctl changes" >&2
+ return 1
+ fi
 
-    # Verify the setting was applied
-    echo -e "\nVerifying sysctl settings..."
-    run_with_sudo sysctl -a | grep user.max_user_namespaces
+ # Verify the setting was applied
+ echo "INFO: Verifying sysctl settings"
+ run_with_sudo sysctl -a | grep user.max_user_namespaces
+ echo "SUCCESS: Sysctl settings verified"
 
-    # Change podman image storage location
-    echo -e "\nSetting podman image location"
-            # Use sudo to append the temporary file to /etc/fstab
-	mkdir -p ~/.config/containers 2>/dev/null
-        if cat configs/storage.conf > ~/.config/containers/storage.conf; then
-            echo "Successfully overwrote ~/.config/containers/storage.conf"
-        else
-            echo "Error: Failed to overwrite ~/.config/containers/storage.conf"
-            return 1
-        fi
-    #podman info | grep -A5 'store'
+ # Change podman image storage location
+ echo "INFO: Setting podman image location"
+ mkdir -p ~/.config/containers 2>/dev/null
+ if cat configs/storage.conf > ~/.config/containers/storage.conf; then
+ echo "SUCCESS: Overwrote ~/.config/containers/storage.conf"
+ else
+ echo "ERROR: Failed to overwrite ~/.config/containers/storage.conf" >&2
+ return 1
+ fi
 
-    #make pods run without active session
-    loginctl enable-linger
-    echo -e "\nSystem settings configured successfully."
+ # Make pods run without active session
+ echo "INFO: Enabling linger for user $USER"
+ if loginctl enable-linger; then
+ echo "SUCCESS: Linger enabled for user $USER"
+ else
+ echo "ERROR: Failed to enable linger for user $USER" >&2
+ return 1
+ fi
+
+ echo "SUCCESS: System settings configured"
 }
 
 provision_disk() {
-    echo -e "\n[ROOT] Disk Provisioning..."
+ echo "INFO: Disk provisioning"
 
-    list_available_disks() {
-    # Get all disks (excluding CD-ROM devices)
-    local disks=($(run_with_sudo lsblk -d -n -o NAME | grep -v sr))
+ list_available_disks() {
+ # Get all disks (excluding CD-ROM devices)
+ local disks=($(run_with_sudo lsblk -d -n -o NAME | grep -v sr))
 
-    if [ ${#disks[@]} -eq 0 ]; then
-        echo "No disks detected in system!" >&2
-        return 1
-    fi
+ if [ ${#disks[@]} -eq 0 ]; then
+ echo "ERROR: No disks detected in system" >&2
+ return 1
+ fi
 
-    local available_disks=()
-    for disk in "${disks[@]}"; do
-        disk_path="/dev/$disk"
+ local available_disks=()
+ for disk in "${disks[@]}"; do
+ disk_path="/dev/$disk"
 
-        # Check if disk has no filesystem and no partitions
-        if ! run_with_sudo blkid -o device | grep -q "$disk_path" && \
-           [ $(run_with_sudo lsblk -n -o TYPE "$disk_path" | grep -c part) -eq 0 ]; then
-            available_disks+=("$disk_path")
-        fi
-    done
+ # Check if disk has no filesystem and no partitions
+ if ! run_with_sudo blkid -o device | grep -q "$disk_path" && \
+ [ $(run_with_sudo lsblk -n -o TYPE "$disk_path" | grep -c part) -eq 0 ]; then
+ available_disks+=("$disk_path")
+ fi
+ done
 
-    if [ ${#available_disks[@]} -eq 0 ]; then
-        echo "No eligible disks found (must be unmounted with no filesystem/partitions)" >&2
-        return 1
-    fi
+ if [ ${#available_disks[@]} -eq 0 ]; then
+ echo "ERROR: No eligible disks found (must be unmounted with no filesystem/partitions)" >&2
+ return 1
+ fi
 
-    # Display disks with numbers and sizes
-    echo "Available disks:"
-    for i in "${!available_disks[@]}"; do
-        size=$(run_with_sudo lsblk -n -o SIZE "${available_disks[$i]}")
-        echo "$((i+1)). ${available_disks[$i]} (${size})"
-    done
+ # Display disks with numbers and sizes
+ echo "INFO: Available disks:"
+ for i in "${!available_disks[@]}"; do
+ size=$(run_with_sudo lsblk -n -o SIZE "${available_disks[$i]}")
+ echo "INFO: $((i+1)). ${available_disks[$i]} (${size})"
+ done
 
-    # Export results
-    AVAILABLE_DISKS=("${available_disks[@]}")
-    export AVAILABLE_DISKS
-    return 0
-    }
+ # Export results
+ AVAILABLE_DISKS=("${available_disks[@]}")
+ export AVAILABLE_DISKS
+ return 0
+ }
 
-    while true; do
-        read -p "Have you added a virtual disk for podman data? (yes/no) " response
-        case $response in
-            [yY]|[yY][eE][sS])
-                if ! list_available_disks; then
-                    echo "No suitable disks found. Please add a disk and try again."
-                    return 1
-                fi
+ while true; do
+ read -p "INFO: Have you added a virtual disk for podman data? (yes/no) " response
+ case $response in
+ [yY]|[yY][eE][sS])
+ if ! list_available_disks; then
+ echo "ERROR: No suitable disks found. Please add a disk and try again" >&2
+ return 1
+ fi
 
-                while true; do
-                    read -p "Select disk number (1-${#AVAILABLE_DISKS[@]}): " disk_num
-                    if [[ "$disk_num" =~ ^[0-9]+$ ]] && [ "$disk_num" -ge 1 ] && [ "$disk_num" -le ${#AVAILABLE_DISKS[@]} ]; then
-                        selected_disk="${AVAILABLE_DISKS[$((disk_num-1))]}"
-                        break
-                    else
-                        echo "Invalid selection. Please enter a number between 1 and ${#AVAILABLE_DISKS[@]}."
-                    fi
-                done
+ while true; do
+ read -p "INFO: Select disk number (1-${#AVAILABLE_DISKS[@]}): " disk_num
+ if [[ "$disk_num" =~ ^[0-9]+$ ]] && [ "$disk_num" -ge 1 ] && [ "$disk_num" -le ${#AVAILABLE_DISKS[@]} ]; then
+ selected_disk="${AVAILABLE_DISKS[$((disk_num-1))]}"
+ break
+ else
+ echo "ERROR: Invalid selection. Please enter a number between 1 and ${#AVAILABLE_DISKS[@]}" >&2
+ fi
+ done
 
-                echo "You selected: $selected_disk"
-                read -p "Confirm format with XFS and mount to /mission-share? (yes/no) " confirm
-                if [[ "$confirm" =~ [yY]|[yY][eE][sS] ]]; then
-                    echo "Creating XFS filesystem on $selected_disk..."
-                    run_with_sudo mkfs.xfs -f "$selected_disk"
-                    check_success "Failed to create XFS filesystem" || return 1
+ echo "INFO: You selected: $selected_disk"
+ read -p "INFO: Confirm format with XFS and mount to /mission-share? (yes/no) " confirm
+ if [[ "$confirm" =~ [yY]|[yY][eE][sS] ]]; then
+ echo "INFO: Creating XFS filesystem on $selected_disk"
+ if run_with_sudo mkfs.xfs -f "$selected_disk"; then
+ echo "SUCCESS: Created XFS filesystem on $selected_disk"
+ else
+ echo "ERROR: Failed to create XFS filesystem on $selected_disk" >&2
+ return 1
+ fi
 
-		    echo "Triggering device rescan to force UUID"
-		    run_with_sudo udevadm trigger
-		    sleep 2
+ echo "INFO: Triggering device rescan to force UUID"
+ run_with_sudo udevadm trigger
+ sleep 2
 
-                    echo "Creating mount point /mission-share..."
-                    run_with_sudo mkdir -p /mission-share
-                    run_with_sudo chmod 0777 /mission-share
+ echo "INFO: Creating mount point /mission-share"
+ run_with_sudo mkdir -p /mission-share
+ run_with_sudo chmod 0777 /mission-share
 
-                    echo "Mounting $selected_disk to /mission-share..."
-                    run_with_sudo mount "$selected_disk" /mission-share
-                    check_success "Failed to mount disk" || return 1
+ echo "INFO: Mounting $selected_disk to /mission-share"
+ if run_with_sudo mount "$selected_disk" /mission-share; then
+ echo "SUCCESS: Mounted $selected_disk to /mission-share"
+ else
+ echo "ERROR: Failed to mount $selected_disk to /mission-share" >&2
+ return 1
+ fi
 
-                    run_with_sudo chmod 0777 /mission-share
-                    #take care of selinux label now before its populated with stuff
-                    run_with_sudo semanage fcontext -a -t container_file_t "/mission-share(/.*)?"
-                    run_with_sudo restorecon -Rv /mission-share
+ run_with_sudo chmod 0777 /mission-share
+ echo "INFO: Setting SELinux context for /mission-share"
+ run_with_sudo semanage fcontext -a -t container_file_t "/mission-share(/.*)?"
+ run_with_sudo restorecon -Rv /mission-share
+ echo "SUCCESS: SELinux context set for /mission-share"
 
-                    mkdir -p /mission-share/upload
-                    chmod 0777 /mission-share/upload
+ echo "INFO: Creating upload directory"
+ mkdir -p /mission-share/upload
+ chmod 0777 /mission-share/upload
+ echo "SUCCESS: Upload directory created"
 
+ echo "INFO: Initializing podman storage directories"
+ podman info >/dev/null
+ podman unshare mkdir -p /mission-share/podman/containers
+ echo "SUCCESS: Podman storage directories initialized"
 
-		    #let podman command make the directoies for us
-                    podman info >/dev/null
-                    podman unshare mkdir -p /mission-share/podman/containers
+ echo "INFO: Adding $selected_disk to /etc/fstab"
+ uuid=$(run_with_sudo blkid -s UUID -o value "$selected_disk")
+ echo "INFO: UUID found is $uuid"
 
-                    echo "Adding $selected_disk to /etc/fstab..."
-                    uuid=$(run_with_sudo blkid -s UUID -o value "$selected_disk")
-		            echo "UUID found is $uuid"
+ if [ -z "$uuid" ]; then
+ echo "ERROR: Could not get UUID of $selected_disk" >&2
+ return 1
+ fi
 
-                    if [ -z "$uuid" ]; then
-                        echo "Error: Could not get UUID of $selected_disk" >&2
-                        return 1
-                    fi
+ fstab_line="UUID=$uuid /mission-share xfs defaults 0 0"
+ echo "INFO: fstab entry: $fstab_line"
+ if run_with_sudo grep -q "/mission-share" /etc/fstab; then
+ echo "WARNING: /mission-share already exists in /etc/fstab. Please check manually."
+ else
+ run_with_sudo cp /etc/fstab /etc/fstab.bak
+ echo "SUCCESS: Backed up /etc/fstab"
+ append_to_fstab "$fstab_line"
+ fi
 
-                    fstab_line="UUID=$uuid /mission-share xfs defaults 0 0"
-                    echo $fstab_line
-                    if run_with_sudo grep -q "/mission-share" /etc/fstab; then
-                        echo "Warning: /mission-share already exists in /etc/fstab. Please check manually."
-                    else
-                        # Backup /etc/fstab first
-			        run_with_sudo cp /etc/fstab /etc/fstab.bak
-			        append_to_fstab "$fstab_line"
-                    fi
-
-                    echo "Disk provisioning completed successfully!"
-                    return 0
-                else
-                    echo "Operation cancelled."
-                    return 0
-                fi
-                ;;
-            [nN]|[nN][oO])
-                echo "Skipping disk provisioning."
-                return 0
-                ;;
-            *)
-                echo "Please answer yes or no."
-                ;;
-        esac
-    done
+ echo "SUCCESS: Disk provisioning completed"
+ return 0
+ else
+ echo "INFO: Operation cancelled"
+ return 0
+ fi
+ ;;
+ [nN]|[nN][oO])
+ echo "INFO: Skipping disk provisioning"
+ return 0
+ ;;
+ *)
+ echo "ERROR: Please answer yes or no" >&2
+ ;;
+ esac
+ done
 }
 
 install_nginx() {
-    echo -e "\n[ROOT] Nginx Installation and Configuration..."
+ echo "INFO: Installing and configuring Nginx"
 
-    if ! command -v nginx &> /dev/null; then
-        echo "Installing nginx..."
-        run_with_sudo dnf install nginx -y
-        check_success "Failed to install nginx" || return 1
-        echo "Nginx installed successfully"
-    else
-        echo "Nginx is already installed"
-    fi
+ if ! command -v nginx &> /dev/null; then
+ echo "INFO: Installing nginx"
+ if run_with_sudo dnf install nginx -y; then
+ echo "SUCCESS: Nginx installed"
+ else
+ echo "ERROR: Failed to install nginx" >&2
+ return 1
+ fi
+ else
+ echo "INFO: Nginx is already installed"
+ fi
 
-    config_source="configs/nginx.conf"
-    config_dest="/etc/nginx/nginx.conf"
+ config_source="configs/nginx.conf"
+ config_dest="/etc/nginx/nginx.conf"
 
-    if [ ! -f "$config_source" ]; then
-        echo "Error: Source config file $config_source not found" >&2
-        return 1
-    fi
+ if [ ! -f "$config_source" ]; then
+ echo "ERROR: Source config file $config_source not found" >&2
+ return 1
+ fi
 
-    echo "Copying Nginx configuration..."
-    run_with_sudo cp -vf "$config_source" "$config_dest"
-    run_with_sudo mkdir -vp /usr/share/nginx/html/rpms
-    run_with_sudo chmod -v 0755 /usr/share/nginx/html/rpms
-    run_with_sudo cp -vf alloy_installers/alloy-1.7.5-1.amd64.rpm /usr/share/nginx/html/rpms/
-    run_with_sudo chmod -v 0644 /usr/share/nginx/html/rpms/alloy-1.7.5-1.amd64.rpm
-    run_with_sudo cp -vf alloy_installers/alloy-installer-windows-amd64.exe.zip /usr/share/nginx/html/rpms/
-    run_with_sudo chmod -v 0644 /usr/share/nginx/html/rpms/alloy-installer-windows-amd64.exe.zip
-    check_success "Failed to copy Nginx configuration" || return 1
+ echo "INFO: Copying Nginx configuration"
+ if run_with_sudo cp -vf "$config_source" "$config_dest" && \
+ run_with_sudo mkdir -vp /usr/share/nginx/html/rpms && \
+ run_with_sudo chmod -v 0755 /usr/share/nginx/html/rpms && \
+ run_with_sudo cp -vf alloy_installers/alloy-1.7.5-1.amd64.rpm /usr/share/nginx/html/rpms/ && \
+ run_with_sudo chmod -v 0644 /usr/share/nginx/html/rpms/alloy-1.7.5-1.amd64.rpm && \
+ run_with_sudo cp -vf alloy_installers/alloy-installer-windows-amd64.exe.zip /usr/share/nginx/html/rpms/ && \
+ run_with_sudo chmod -v 0644 /usr/share/nginx/html/rpms/alloy-installer-windows-amd64.exe.zip; then
+ echo "SUCCESS: Nginx configuration and files copied"
+ else
+ echo "ERROR: Failed to copy Nginx configuration or files" >&2
+ return 1
+ fi
 
-    run_with_sudo chmod -v 644 "$config_dest"
-    echo "Configuration copied successfully"
+ run_with_sudo chmod -v 644 "$config_dest"
+ echo "SUCCESS: Nginx configuration permissions set"
 
-    configure_selinux
+ configure_selinux
 
-    echo "Enabling and starting Nginx service..."
-    run_with_sudo systemctl enable nginx
-    run_with_sudo systemctl restart nginx
-    check_success "Failed to restart Nginx" || return 1
+ echo "INFO: Enabling and starting Nginx service"
+ if run_with_sudo systemctl enable nginx && run_with_sudo systemctl restart nginx; then
+ echo "SUCCESS: Nginx service enabled and started"
+ else
+ echo "ERROR: Failed to enable or start Nginx service" >&2
+ return 1
+ fi
 
-    echo "Nginx configuration completed successfully!"
+ echo "SUCCESS: Nginx configuration completed"
 }
 
 configure_selinux() {
-    if command -v getenforce &> /dev/null && [ "$(getenforce)" = "Enforcing" ]; then
-        echo "Configuring SELinux for Nginx proxy..."
+ if command -v getenforce &> /dev/null && [ "$(getenforce)" = "Enforcing" ]; then
+ echo "INFO: Configuring SELinux for Nginx proxy"
 
-        run_with_sudo setsebool -P httpd_can_network_connect 1
-        check_success "Failed to set SELinux boolean" || return 1
+ if run_with_sudo setsebool -P httpd_can_network_connect 1; then
+ echo "SUCCESS: SELinux boolean set"
+ else
+ echo "ERROR: Failed to set SELinux boolean" >&2
+ return 1
+ fi
 
-        for port in 3000 3100 9009; do
-            if ! run_with_sudo semanage port -l | grep -q "http_port_t.*tcp.*${port}"; then
-                echo "Adding SELinux exception for port $port..."
-                run_with_sudo semanage port -a -t http_port_t -p tcp ${port} 2>/dev/null || \
-                echo "Warning: May need to install policycoreutils-python-utils for semanage"
-            fi
-        done
+ for port in 3000 3100 9009; do
+ if ! run_with_sudo semanage port -l | grep -q "http_port_t.*tcp.*${port}"; then
+ echo "INFO: Adding SELinux exception for port $port"
+ if run_with_sudo semanage port -a -t http_port_t -p tcp ${port} 2>/dev/null; then
+ echo "SUCCESS: SELinux port $port added"
+ else
+ echo "WARNING: Failed to add SELinux port $port. May need to install policycoreutils-python-utils"
+ fi
+ else
+ echo "INFO: SELinux port $port already configured"
+ fi
+ done
 
-        echo "SELinux configuration complete"
-    else
-        echo "SELinux is not enforcing, skipping configuration"
-    fi
+ echo "SUCCESS: SELinux configuration completed"
+ else
+ echo "INFO: SELinux is not enforcing, skipping configuration"
+ fi
 }
 
 configure_firewall() {
-    echo -e "\n[ROOT] Firewall Configuration..."
+ echo "INFO: Configuring firewall"
 
-    if ! command -v firewall-cmd &> /dev/null; then
-        echo "Warning: firewalld is not installed. Skipping firewall configuration."
-        return 0
-    fi
+ if ! command -v firewall-cmd &> /dev/null; then
+ echo "WARNING: firewalld is not installed. Skipping firewall configuration"
+ return 0
+ fi
 
-    if ! systemctl is-active --quiet firewalld; then
-        echo "Starting firewalld..."
-        run_with_sudo systemctl start firewalld
-    fi
+ if ! systemctl is-active --quiet firewalld; then
+ echo "INFO: Starting firewalld"
+ if run_with_sudo systemctl start firewalld; then
+ echo "SUCCESS: Firewalld started"
+ else
+ echo "ERROR: Failed to start firewalld" >&2
+ return 1
+ fi
+ fi
 
-    declare -A PORTS=(
-        ["HTTP"]="80/tcp"
-        ["HTTPs"]="443/tcp"
-        ["Grafana"]="3000/tcp"
-        ["Loki"]="3100/tcp"
-        ["Mimir"]="9009/tcp"
-	["Nifi-ssl"]="8443/tcp"
-	["Nifi-3200"]="3200/tcp"
-	["Nifi-9092"]="9092/tcp"
-	["Gitlab-ssl"]="9443/tcp"
-	["Gitlab-http"]="8088/tcp"
-	["Gitlab-ssh"]="2200/tcp"
-    )
+ declare -A PORTS=(
+ ["HTTP"]="80/tcp"
+ ["HTTPs"]="443/tcp"
+ ["Grafana"]="3000/tcp"
+ ["Loki"]="3100/tcp"
+ ["Mimir"]="9009/tcp"
+ ["Nifi-ssl"]="8443/tcp"
+ ["Nifi-3200"]="3200/tcp"
+ ["Nifi-9092"]="9092/tcp"
+ ["Gitlab-ssl"]="9443/tcp"
+ ["Gitlab-http"]="8088/tcp"
+ ["Gitlab-ssh"]="2200/tcp"
+ )
 
+ for service in "${!PORTS[@]}"; do
+ port=${PORTS[$service]}
+ if ! run_with_sudo firewall-cmd --query-port="$port" | grep -q "yes"; then
+ echo "INFO: Opening port $port for $service"
+ if run_with_sudo firewall-cmd --permanent --add-port="$port"; then
+ echo "SUCCESS: Port $port opened for $service"
+ else
+ echo "ERROR: Failed to open port $port for $service" >&2
+ return 1
+ fi
+ else
+ echo "INFO: Port $port for $service is already configured"
+ fi
+ done
 
-    for service in "${!PORTS[@]}"; do
-        port=${PORTS[$service]}
-        if ! run_with_sudo firewall-cmd --query-port="$port" | grep -q "yes"; then
-            echo "Opening port $port for $service..."
-            run_with_sudo firewall-cmd --permanent --add-port="$port"
-            check_success "Failed to open port $port" || return 1
-    	else
-	    echo "Port: $port for $service is already configured. Skipping."
-	fi
-    done
+ echo "INFO: Adding NFS service"
+ if run_with_sudo firewall-cmd --permanent --add-service="nfs"; then
+ echo "SUCCESS: NFS service added to firewall"
+ else
+ echo "ERROR: Failed to add NFS service to firewall" >&2
+ return 1
+ fi
 
-    echo "Adding NFS service"
-    run_with_sudo firewall-cmd --permanent --now --add-service="nfs"
+ echo "INFO: Reloading firewalld"
+ if run_with_sudo firewall-cmd --reload; then
+ echo "SUCCESS: Firewalld reloaded"
+ else
+ echo "ERROR: Failed to reload firewalld" >&2
+ return 1
+ fi
 
-
-    echo "Reloading firewalld..."
-    run_with_sudo firewall-cmd --reload
-    check_success "Failed to reload firewalld" || return 1
-
-    echo "Firewall configuration completed successfully!"
+ echo "SUCCESS: Firewall configuration completed"
 }
-
-# ---------- Non-Privileged Functions (run as user) ----------
 
 pull_container_images() {
-    echo -e "\n[USER] Pulling Container Images..."
+ echo "INFO: Pulling container images"
 
-    if [ ! -f "versions.txt" ]; then
-        echo "Error: versions.txt file not found!" >&2
-        return 1
-    fi
+ if [ ! -f "versions.txt" ]; then
+ echo "ERROR: versions.txt file not found" >&2
+ return 1
+ fi
 
-    #without new disk, there isnt enough room
-    if [ $(grep -c /mission-share /etc/mtab) -eq 0 ]
-       then
-       echo "Please add the 2nd disk, and run the mount option in this script first"
-       return 1
-    fi
+ if [ $(grep -c /mission-share /etc/mtab) -eq 0 ]; then
+ echo "ERROR: Please add the 2nd disk and run the mount option in this script first" >&2
+ return 1
+ fi
 
-    # Login to registry
-    podman login -u Brian_Bowen -p '0o9i8u7y)O(I*U&Y' registry1.dso.mil
+ # Login to registry
+ echo "INFO: Logging into registry1.dso.mil"
+ if podman login -u Brian_Bowen -p '0o9i8u7y)O(I*U&Y' registry1.dso.mil; then
+ echo "SUCCESS: Logged into registry1.dso.mil"
+ else
+ echo "ERROR: Failed to log into registry1.dso.mil" >&2
+ return 1
+ fi
 
-    # Load versions
-    . versions.txt
+ # Load versions
+ . versions.txt
 
-    # Pull and tag Grafana
-    echo "Downloading grafana version ${GRAFANA_VERSION}"
-    podman pull registry1.dso.mil/ironbank/opensource/grafana/grafana:${GRAFANA_VERSION}
-    podman image tag grafana:${GRAFANA_VERSION} grafana-oss-custom:${GRAFANA_VERSION}
+ # Pull and tag Grafana
+ echo "INFO: Downloading grafana version ${GRAFANA_VERSION}"
+ if podman pull registry1.dso.mil/ironbank/opensource/grafana/grafana:${G RAFANA_VERSION} && \
+ podman image tag grafana:${GRAFANA_VERSION} grafana-oss-custom:${GRAFANA_VERSION}; then
+ echo "SUCCESS: Grafana image pulled and tagged"
+ else
+ echo "ERROR: Failed to pull or tag Grafana image" >&2
+ return 1
+ fi
 
-    # Pull and tag Loki
-    echo "Downloading loki version ${LOKI_VERSION}"
-    podman pull registry1.dso.mil/ironbank/opensource/grafana/loki:${LOKI_VERSION}
-    podman image tag loki:${LOKI_VERSION} loki-custom:${LOKI_VERSION}
+ # Pull and tag Loki
+ echo "INFO: Downloading loki version ${LOKI_VERSION}"
+ if podman pull registry1.dso.mil/ironbank/opensource/grafana/loki:${LOKI_VERSION} && \
+ podman image tag loki:${LOKI_VERSION} loki-custom:${LOKI_VERSION}; then
+ echo "SUCCESS: Loki image pulled and tagged"
+ else
+ echo "ERROR: Failed to pull or tag Loki image" >&2
+ return 1
+ fi
 
-    # Pull and tag Mimir
-    echo "Downloading mimir version ${MIMIR_VERSION}"
-    podman pull registry1.dso.mil/ironbank/opensource/grafana/mimir:${MIMIR_VERSION}
-    podman image tag mimir:${MIMIR_VERSION} mimir-custom:${MIMIR_VERSION}
+ # Pull and tag Mimir
+ echo "INFO: Downloading mimir version ${MIMIR_VERSION}"
+ if podman pull registry1.dso.mil/ironbank/opensource/grafana/mimir:${MIMIR_VERSION} && \
+ podman image tag mimir:${MIMIR_VERSION} mimir-custom:${MIMIR_VERSION}; then
+ echo "SUCCESS: Mimir image pulled and tagged"
+ else
+ echo "ERROR: Failed to pull or tag Mimir image" >&2
+ return 1
+ fi
 
-    # Pull and tag Nifi
-    echo "Downloading nifi version ${NIFI_VERSION}"
-    #podman pull registry1.dso.mil/ironbank/opensource/apache/nifi:${NIFI_VERSION}
-    #until it can be stored on ironbank, use my personal hub for now, so this function still works at least
-    #the image was modified, so sourcing its original location is not a good idea
-    podman pull docker.io/phatblinkie/bigimage:tsb_py
-    podman image tag nifi:${NIFI_VERSION} nifi-custom:${NIFI_VERSION}
+ # Pull and tag Nifi
+ echo "INFO: Downloading nifi version ${NIFI_VERSION}"
+ if podman pull docker.io/phatblinkie/bigimage:tsb_py && \
+ podman image tag nifi:${NIFI_VERSION} nifi-custom:${NIFI_VERSION}; then
+ echo "SUCCESS: Nifi image pulled and tagged"
+ else
+ echo "ERROR: Failed to pull or tag Nifi image" >&2
+ return 1
+ fi
 
-    # Pull and tag GITLAB-CE
-    echo "Downloading Gitlab-ce version ${GITLAB_VERSION}"
-    podman pull docker.io/gitlab/gitlab-ce:${GITLAB_VERSION}
-    podman image tag gitlab-ce:${GITLAB_VERSION} gitlab-ce-custom:${GITLAB_VERSION}
+ # Pull and tag Gitlab-CE
+ echo "INFO: Downloading Gitlab-ce version ${GITLAB_VERSION}"
+ if podman pull docker.io/gitlab/gitlab-ce:${GITLAB_VERSION} && \
+ podman image tag gitlab-ce:${GITLAB_VERSION} gitlab-ce-custom:${GITLAB_VERSION}; then
+ echo "SUCCESS: Gitlab-ce image pulled and tagged"
+ else
+ echo "ERROR: Failed to pull or tag Gitlab-ce image" >&2
+ return 1
+ fi
 
-    echo -e "\nImage download process completed:"
-    podman images | egrep "custom|TAG"
+ echo "INFO: Listing custom images"
+ podman images | egrep "custom|TAG"
+ echo "SUCCESS: Image download process completed"
 }
 
-
 split_large_files() {
-  # Directory containing the files (default: current directory)
-  local dir="${1:-.}"
+ local dir="${1:-.}"
 
-  # Size threshold (.5GB in bytes)
-  local threshold=$((500 * 1024 * 1024))
+ # Check if the directory exists
+ if [[ ! -d "$dir" ]]; then
+ echo "ERROR: Directory '$dir' does not exist" >&2
+ return 1
+ fi
 
-  # Check if the directory exists
-  if [[ ! -d "$dir" ]]; then
-    echo "Error: Directory '$dir' does not exist."
-    return 1
-  fi
+ # Size threshold (.5GB in bytes)
+ local threshold=$((500 * 1024 * 1024))
 
-  # Find files larger than 1.5GB
-  find "$dir" -maxdepth 1 -type f -size +${threshold}c | while IFS= read -r file; do
-    # Get file size in human-readable format for logging
-    local size
-    size=$(ls -sh "$file" | awk '{print $1}')
-    echo "Found file: $file ($size), splitting into 500MB chunks..."
-
-    # Split the file into 500mb chuncks
-    split --verbose -b 500m "$file" "${file}.part."
-    if [[ $? -eq 0 ]]; then
-      echo "Successfully split $file into chunks:"
-      ls -lh "${file}.part."*
-    else
-      echo "Error: Failed to split $file"
-    fi
-  done
+ # Find files larger than .5GB
+ echo "INFO: Checking for files larger than 500MB in '$dir'"
+ find "$dir" -maxdepth 1 -type f -size +${threshold}c | while IFS= read -r file; do
+ local size
+ size=$(ls -sh "$file" | awk '{print $1}')
+ echo "INFO: Found file: $file ($size), splitting into 500MB chunks"
+ if split --verbose -b 500m "$file" "${file}.part."; then
+ echo "SUCCESS: Split $file into chunks"
+ ls -lh "${file}.part."*
+ else
+ echo "ERROR: Failed to split $file" >&2
+ return 1
+ fi
+ done
+ echo "SUCCESS: File splitting process completed"
 }
 
 reassemble_files() {
-  # Directory containing the split files (default: current directory)
-  local dir="${1:-.}"
+ local dir="${1:-.}"
 
-  # Check if the directory exists
-  if [[ ! -d "$dir" ]]; then
-    echo "Error: Directory '$dir' does not exist."
-    return 1
-  fi
+ # Check if the directory exists
+ if [[ ! -d "$dir" ]]; then
+ echo "ERROR: Directory '$dir' does not exist" >&2
+ return 1
+ fi
 
-  # Normalize directory path to remove trailing slash
-  dir="${dir%/}"
+ # Normalize directory path to remove trailing slash
+ dir="${dir%/}"
 
-  # Initialize a flag to track if any files were reassembled
-  local files_reassembled=false
+ # Initialize a flag to track if any files were reassembled
+ local files_reassembled=false
 
-  # Find unique base filenames from split parts (e.g., nifi-1.24-py.tar.gz from nifi-1.24-py.tar.gz.part.aa)
-  find "$dir" -maxdepth 1 -type f -name '*.part.*' | sed 's/\.part\.[a-z]\+$//' | sort -u | while IFS= read -r base_file; do
-    # Check if the base file already exists
-    if [[ -f "$base_file" ]]; then
-      echo "Warning: Original file '$base_file' already exists. Skipping reassembly."
-      continue
-    fi
+ # Find unique base filenames from split parts
+ echo "INFO: Checking for split files in '$dir'"
+ find "$dir" -maxdepth 1 -type f -name '*.part.*' | sed 's/\.part\.[a-z]\+$//' | sort -u | while IFS= read -r base_file; do
+ if [[ -f "$base_file" ]]; then
+ echo "WARNING: Original file '$base_file' already exists. Skipping reassembly"
+ continue
+ fi
 
-    # Get list of parts for this base file
-    local parts
-    parts=$(find "$dir" -maxdepth 1 -type f -name "${base_file##*/}.part.*" | sort)
+ local parts
+ parts=$(find "$dir" -maxdepth 1 -type f -name "${base_file##*/}.part.*" | sort)
 
-    # Check if any parts were found
-    if [[ -z "$parts" ]]; then
-      echo "Warning: No split parts found for '$base_file'."
-      continue
-    fi
+ if [[ -z "$parts" ]]; then
+ echo "WARNING: No split parts found for '$base_file'"
+ continue
+ fi
 
-    # Log the parts being reassembled
-    echo "Reassembling '$base_file' from parts:"
-    echo "$parts" | while IFS= read -r part; do
-      echo "  $part"
-    done
+ echo "INFO: Reassembling '$base_file' from parts:"
+ echo "$parts" | while IFS= read -r part; do
+ echo "INFO: $part"
+ done
 
-    # Combine the parts into the original file
-    cat $parts > "$base_file"
-    if [[ $? -eq 0 ]]; then
-      echo "Successfully reassembled '$base_file'"
-      echo
-      echo
-      files_reassembled=true
-      # Optional: List the reassembled file details
-      ls -lh "$base_file"
-      rm "${base_file}.part."*
-        echo "Deleted split parts for '$base_file'"
-	echo
-	echo
-    else
-      echo "Error: Failed to reassemble '$base_file'"
-      return 1
-    fi
-  done
+ if cat $parts > "$base_file"; then
+ echo "SUCCESS: Reassembled '$base_file'"
+ ls -lh "$base_file"
+ rm "${base_file}.part."*
+ echo "SUCCESS: Deleted split parts for '$base_file'"
+ files_reassembled=true
+ else
+ echo "ERROR: Failed to reassemble '$base_file'" >&2
+ return 1
+ fi
+ done
 
+ if [[ "$files_reassembled" == false ]]; then
+ echo "INFO: No files needed reassembly"
+ fi
+ echo "SUCCESS: File reassembly process completed"
 }
-# Example usage
-# reassemble_files "/mission-share/podman/containers/keys/nifi"
 
-install_tarball_images () {
-    echo -e "\n[USER] Installing tarball container images"
+install_tarball_images() {
+ echo "INFO: Installing tarball container images"
 
-    echo "Copying repo images to /mission-share/upload/"
-    rsync -avh --progress upload_contents_to_mission-share_upload_dir/* /mission-share/upload/
-    echo "Checking file integrity..."
-    sha1sum -c --ignore-missing /mission-share/upload/sha1sum.txt
-    if [ $? -ne 0 ]; then
-        echo "Error: SHA1 checksum verification failed. Please check the uploaded files."
-        return 1
-    fi
-    echo "File integrity check passed."
-    echo "Reassembling split files if needed..."
-    reassemble_files "/mission-share/upload"
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to reassemble split files. Please check the upload directory."
-        return 1
-    fi
-    echo "Reassembly complete or previously performed. Proceeding with 2nd integrity check..."
-    sha1sum -c /mission-share/upload/sha1sum-after-assembly.txt
-    if [ $? -ne 0 ]; then
-        echo "Error: SHA1 checksum verification after reassembly failed. Please check the uploaded files."
-        return 1
-    fi
-    echo "File integrity check after reassembly passed."
-    echo -e "\n[USER] Importing tarball container images"
-    for i in `ls /mission-share/upload/*.tar.gz|grep -v part`;  # Exclude split parts
-	do
-        echo "Importing container image: $i"
-        mkdir -p /mission-share/.tmp >/dev/null
-	    export TMPDIR=/mission-share/.tmp && podman load -i "$i"
-	done
+ echo "INFO: Copying repo images to /mission-share/upload"
+ if rsync -avh --progress upload_contents_to_mission-share_upload_dir/* /mission-share/upload/; then
+ echo "SUCCESS: Copied images to /mission-share/upload"
+ else
+ echo "ERROR: Failed to copy images to /mission-share/upload" >&2
+ return 1
+ fi
+
+ echo "INFO: Checking file integrity"
+ if sha1sum -c --ignore-missing /mission-share/upload/sha1sum.txt; then
+ echo "SUCCESS: File integrity check passed"
+ else
+ echo "ERROR: SHA1 checksum verification failed. Please check the uploaded files" >&2
+ return 1
+ fi
+
+ echo "INFO: Reassembling split files if needed"
+ if reassemble_files "/mission-share/upload"; then
+ echo "SUCCESS: Reassembly completed"
+ else
+ echo "ERROR: Failed to reassemble split files" >&2
+ return 1
+ fi
+
+ echo "INFO: Performing second integrity check"
+ if sha1sum -c /mission-share/upload/sha1sum-after-assembly.txt; then
+ echo "SUCCESS: Second integrity check passed"
+ else
+ echo "ERROR: SHA1 checksum verification after reassembly failed" >&2
+ return 1
+ fi
+
+ echo "INFO: Importing tarball container images"
+ for i in $(ls /mission-share/upload/*.tar.gz | grep -v part); do
+ echo "INFO: Importing container image: $i"
+ mkdir -p /mission-share/.tmp >/dev/null
+ if export TMPDIR=/mission-share/.tmp && podman load -i "$i"; then
+ echo "SUCCESS: Imported container image $i"
+ else
+ echo "ERROR: Failed to import container image $i" >&2
+ return 1
+ fi
+ done
+ echo "SUCCESS: Tarball image installation completed"
 }
 
 copy_source_directories() {
-    echo -e "\n[ROOT] Copying Source Directories to target disk"
-    # Check for rsync
+    echo "INFO: Copying source directories to target disk"
+
     if ! command -v rsync &> /dev/null; then
-        echo "Error: rsync is required but not installed. Please install it first." >&2
+        echo "ERROR: rsync is required but not installed. Please install it first" >&2
         return 1
     fi
-    # Set up container storage
 
     path="/mission-share/podman/containers"
     rootpath="/mission-share"
     podmanshare="/mission-share/podman"
-    echo
-    echo "Creating container storage folders..."
-    #run_with_sudo chmod 0777 $path
-    run_with_sudo chcon -t -R container_file_t $podmanshare
 
-    echo "Making needed directories"
-    podman unshare mkdir -vp "$path/grafana/provisioning/dashboards" \
+    echo "INFO: Creating container storage folders"
+    run_with_sudo chcon -t -R container_file_t $podmanshare
+    echo "SUCCESS: SELinux context set for $podmanshare"
+
+    echo "INFO: Making needed directories"
+    if podman unshare mkdir -vp "$path/grafana/provisioning/dashboards" \
           "$path/grafana/provisioning" \
           "$path/grafana/dashboards" \
           "$path/grafana" \
@@ -809,222 +962,418 @@ copy_source_directories() {
           "$path/keys/"{grafana,mimir,loki,nifi,nginx} \
           "$rootpath/tide/"{out,in,ccads-in,ccads-out,arc-out,fuse-out,sceptre-in,sceptre-out,esa-out,eped-out,fail,tmp,save,idm-in/save} \
           "$rootpath/audit_logs" \
-	  "$path/gitlab/"{logs,config,data}
+          "$path/gitlab/"{logs,config,data}; then
+        echo "SUCCESS: Directories created"
+    else
+        echo "ERROR: Failed to create directories" >&2
+        return 1
+    fi
 
+    echo "INFO: Copying configuration files"
+    if podman unshare cp -v configs/* $path/configs/ && \
+       podman unshare chmod 0644 $path/configs/*; then
+        echo "SUCCESS: Configuration files copied and permissions set"
+    else
+        echo "ERROR: Failed to copy configuration files or set permissions" >&2
+        return 1
+    fi
 
+    echo "INFO: Copying Grafana datasource files to $path/grafana/provisioning"
+    if podman unshare cp -v grafana/provisioning/datasources/datasources.yaml $path/grafana/provisioning/; then
+        echo "SUCCESS: Grafana datasource files copied"
+    else
+        echo "ERROR: Failed to copy Grafana datasource files" >&2
+        return 1
+    fi
 
-    podman unshare cp -v configs/* $path/configs/
-    podman unshare chmod 0644 $path/configs/*
+    echo "INFO: Copying Grafana dashboards to $path/grafana/dashboards"
+    if podman unshare rsync -ah grafana/provisioning/dashboards/ $path/grafana/dashboards/; then
+        echo "SUCCESS: Grafana dashboards copied"
+    else
+        echo "ERROR: Failed to copy Grafana dashboards" >&2
+        return 1
+    fi
 
-    # Copy provisioning files
-    echo
-    echo "Copying Grafana datasource files to $path/grafana/provisioning/"
-    podman unshare cp -v grafana/provisioning/datasources/datasources.yaml $path/grafana/provisioning/
-    #chmod -v 0644 $path/grafana/provisioning/datasources.yaml
+    echo "INFO: Removing old unneeded files"
+    if podman unshare rm -vf $path/grafana/dashboards/*.yaml; then
+        echo "SUCCESS: Removed old unneeded files"
+    else
+        echo "ERROR: Failed to remove old unneeded files" >&2
+        return 1
+    fi
 
-    # Sync dashboards and plugins
-    echo
-    echo "Copying Grafana dashboards and plugins to $path/grafana/dashboards/"
-    podman unshare rsync -ah grafana/provisioning/dashboards/ $path/grafana/dashboards/
-    echo
-    echo "removing old not needed files"
-    podman unshare rm -vf $path/grafana/dashboards/*.yaml
-    echo
-    echo "Copying Grafana provisioning files to $path/grafana/provisioning/dashboards/"
-    podman unshare rsync -ah grafana/provisioning/dashboards/*.yaml $path/grafana/provisioning/dashboards/
-    echo
-    echo "Copying Grafana plugins to $path/grafana/"
-    podman unshare rsync -ah grafana/plugins $path/grafana/
+    echo "INFO: Copying Grafana provisioning files to $path/grafana/provisioning/dashboards"
+    if podman unshare rsync -ah grafana/provisioning/dashboards/*.yaml $path/grafana/provisioning/dashboards/; then
+        echo "SUCCESS: Grafana provisioning files copied"
+    else
+        echo "ERROR: Failed to copy Grafana provisioning files" >&2
+        return 1
+    fi
 
-    #original files from docker
-    echo
-    echo "Copying vast-ca, images, tools to new location"
-    podman unshare rsync -ah vast-ca $rootpath/
-    #manually done by user
-    #podman unshare rsync -ah images /mission-share/
-    podman unshare rsync -ah tools $rootpath/
-    #let nifi create this file itself
-    #podman unshare touch $path/nifi/logs/nifi-app.log
-    podman unshare chmod -R 777 $rootpath/tide
+    echo "INFO: Copying Grafana plugins to $path/grafana"
+    if podman unshare rsync -ah grafana/plugins $path/grafana/; then
+        echo "SUCCESS: Grafana plugins copied"
+    else
+        echo "ERROR: Failed to copy Grafana plugins" >&2
+        return 1
+    fi
 
-    #nifi directories
-    echo
-    echo "Copying Nifi configuration files to $path/nifi"
-    podman unshare rsync -avh nifi/ $path/nifi/
-    echo "Fixing permissions on Nifi directories"
-    podman unshare find /mission-share/podman/containers/nifi/ -type d -exec chmod 0777 {} \;
-    podman unshare find /mission-share/podman/containers/nifi/ -type f -exec chmod 0644 {} \;
-    #sadly, we have to get the container subuid and chmod things due to the way the umask has been set
-    grep $USER /etc/subuid|awk -F: '{ print $2 }' | awk -F- '{ print $1 }' | while read -r uid; do
-        echo "Setting permissions for user $USER with UID $uid"
-        run_with_sudo chmod 0777 $path/nifi/logs $path/nifi/conf $path/nifi/lib
-        run_with_sudo chown -R $uid:$uid $path/nifi/logs $path/nifi/conf $path/nifi/lib
-    done
-    run_with_sudo chmod 0777 /mission-share/podman/containers/nifi/conf/*.zip
-    run_with_sudo chmod 0777 /mission-share/podman/containers/nifi/conf/*.gz
+    echo "INFO: Copying vast-ca and tools to new location"
+    if podman unshare rsync -ah vast-ca $rootpath/ && \
+       podman unshare rsync -ah tools $rootpath/; then
+        echo "SUCCESS: Copied vast-ca and tools"
+    else
+        echo "ERROR: Failed to copy vast-ca or tools" >&2
+        return 1
+    fi
 
-    #gitlab direcotories
-    echo
-    #podman unshare mkdir -p /mission-share/podman/containers/gitlab/{logs,config,data}
-    run_with_sudo chmod 0777 /mission-share/podman/containers/gitlab
-    run_with_sudo chmod 0777 /mission-share/podman/containers/gitlab/{logs,config,data}
+    echo "INFO: Setting permissions on tide directories"
+    if podman unshare chmod -R 777 $rootpath/tide; then
+        echo "SUCCESS: Permissions set on tide directories"
+    else
+        echo "ERROR: Failed to set permissions on tide directories" >&2
+        return 1
+    fi
+
+    echo "INFO: Copying Nifi configuration files to $path/nifi"
+    if podman unshare rsync -avh nifi/ $path/nifi/; then
+        echo "SUCCESS: Nifi configuration files copied"
+    else
+        echo "ERROR: Failed to copy Nifi configuration files" >&2
+        return 1
+    fi
+
+    echo "INFO: Fixing permissions on Nifi directories"
+    if podman unshare find /mission-share/podman/containers/nifi/ -type d -exec chmod 0777 {} \; && \
+       podman unshare find /mission-share/podman/containers/nifi/ -type f -exec chmod 0644 {} \; && \
+       grep $USER /etc/subuid | awk -F: '{ print $2 }' | awk -F- '{ print $1 }' | while read -r uid; do
+           echo "INFO: Setting permissions for user $USER with UID $uid"
+           if run_with_sudo chmod 0777 $path/nifi/logs $path/nifi/conf $path/nifi/lib && \
+              run_with_sudo chown -R $uid:$uid $path/nifi/logs $path/nifi/conf $path/nifi/lib; then
+               echo "SUCCESS: Permissions set for Nifi directories with UID $uid"
+           else
+               echo "ERROR: Failed to set permissions for Nifi directories with UID $uid" >&2
+               return 1
+           fi
+       done && \
+       run_with_sudo chmod 0777 /mission-share/podman/containers/nifi/conf/*.zip && \
+       run_with_sudo chmod 0777 /mission-share/podman/containers/nifi/conf/*.gz; then
+        echo "SUCCESS: Nifi directory permissions fixed"
+    else
+        echo "ERROR: Failed to fix Nifi directory permissions" >&2
+        return 1
+    fi
+
+    echo "INFO: Setting permissions on Gitlab directories"
+    if run_with_sudo chmod 0777 /mission-share/podman/containers/gitlab && \
+       run_with_sudo chmod 0777 /mission-share/podman/containers/gitlab/{logs,config,data}; then
+        echo "SUCCESS: Gitlab directory permissions set"
+    else
+        echo "ERROR: Failed to set Gitlab directory permissions" >&2
+        return 1
+    fi
+
+    echo "SUCCESS: Source directory copying completed"
 }
 
-
 build_and_start_pod_gitlab() {
-    echo -e "\n[USER] Building and Starting GITLAB Pod..."
+    echo "INFO: Building and starting Gitlab pod"
 
-    # Stop existing pod if running
-    echo "Stopping gitlab pod if running..."
-    podman pod stop gitlab
+    echo "INFO: Stopping Gitlab pod if running"
+    if podman pod stop gitlab 2>/dev/null; then
+        echo "SUCCESS: Gitlab pod stopped or not running"
+    else
+        echo "INFO: No Gitlab pod was running or stop command ignored"
+    fi
 
-    #sadly, with all this customization, we have to 777 some dirs
-    podman unshare chmod -v 0777 /mission-share/podman/containers/gitlab
-    podman unshare chmod -v 0777 /mission-share/podman/containers/gitlab/{config,logs,data}
+    echo "INFO: Setting permissions on Gitlab directories"
+    if podman unshare chmod -v 0777 /mission-share/podman/containers/gitlab && \
+       podman unshare chmod -v 0777 /mission-share/podman/containers/gitlab/{config,logs,data}; then
+        echo "SUCCESS: Gitlab directory permissions set"
+    else
+        echo "ERROR: Failed to set Gitlab directory permissions" >&2
+        return 1
+    fi
 
     # Load versions
-    . versions.txt
-
-    #gather desired ip to bind to
-    hostname -i
-    read -p "Please enter IP address to use: " IP_ADDRESS
-    # Display the entered IP address
-    echo "You entered: $IP_ADDRESS"
-
-    # Generate and deploy pod YAML
-    echo "Generating new pod YAML from template..."
-    cd gitlab-pod || return 1
-    cat gitlab-pod.yml.template | \
-        sed "s|IP_ADDRESS|$IP_ADDRESS|g" | \
-        sed "s|GITLAB_VERSION|$GITLAB_VERSION|g" > gitlab-pod.yml
-
-    #echo "Building pod with --replace..."
-    #podman play kube --replace ogs-pod.yml
-
-    echo "Creating Systemd files to manage pod with systemd..."
-    # Create Quadlet directory
-     mkdir -p ~/.config/containers/systemd
-     mkdir -p ~/.config/systemd/user
-
-    #set vm overcommit for redis in sysctl
-    run_with_sudo sysctl vm.overcommit_memory=1
-    #now make it permanent
-    if echo "$SUDO_PASSWORD" | sudo -S sh -c "echo 'vm.overcommit_memory=1' > /etc/sysctl.d/99-redis.conf" 2>/dev/null; then
-       echo "Successfully appended to /etc/sysctl.d/99-redis.conf."
+    echo "INFO: Loading versions from versions.txt"
+    if . versions.txt; then
+        echo "SUCCESS: Versions loaded"
     else
-       echo "Error: Failed to append to /etc/sysctl.d/99-redis.conf"
-       return 1
+        echo "ERROR: Failed to load versions.txt" >&2
+        return 1
     fi
 
 
-    # Copy Quadlet file (ensure podman unshare if needed for permissions)
-    podman unshare cp -f gitlab-pod.yml /mission-share/podman/containers/gitlab-pod.yml
-    echo "Starting initial gitlab pod..."
-    podman kube play --replace /mission-share/podman/containers/gitlab-pod.yml
-    echo "Generating systemd service files for podman pod gitlab..."
-    podman generate systemd --name --files gitlab
-    mv -fv *.service ~/.config/systemd/user/
+    podmanshare="/mission-share/podman"
+    echo "INFO: Setting SELinux context for $podmanshare"
+    if run_with_sudo chcon -t container_file_t -R $podmanshare; then
+        echo "SUCCESS: SELinux context set for $podmanshare"
+    else
+        echo "ERROR: Failed to set SELinux context for $podmanshare"
+        return 1
+    fi
 
-    # Reload systemd to generate service
-    systemctl --user daemon-reload
+    if run_with_sudo restorecon -R $podmanshare; then
+        echo "SUCCESS: SELinux restored context for $podmanshare"
+    else
+        echo "ERROR: Failed to set SELinux context for $podmanshare"
+        return 1
+    fi
 
-    #stopping pod if it exists
-    echo "Stopping existing gitlab pod if running..."
-    podman pod stop gitlab
 
-    # Start the service with systemd
-    echo "Enabling and starting gitlab-ogs.service..."
-    systemctl --user enable --now pod-gitlab.service
 
+    # Gather desired IP to bind to
+    hostname -i
+    echo "INFO: Please enter IP address to use:"
+    read -r IP_ADDRESS
+    echo "INFO: You entered: $IP_ADDRESS"
+
+    # Generate and deploy pod YAML
+    echo "INFO: Generating new GitLab pod YAML from template"
+    cd gitlab-pod || { echo "ERROR: Failed to change to gitlab-pod directory" >&2; return 1; }
+    if cat gitlab-pod.yml.template | \
+       sed "s|IP_ADDRESS|$IP_ADDRESS|g" | \
+       sed "s|GITLAB_VERSION|$GITLAB_VERSION|g" > gitlab-pod.yml; then
+        echo "SUCCESS: Generated Gitlab pod YAML"
+    else
+        echo "ERROR: Failed to generate Gitlab pod YAML" >&2
+        return 1
+    fi
+
+    echo "INFO: Creating Systemd directories"
+    if mkdir -p ~/.config/containers/systemd ~/.config/systemd/user; then
+        echo "SUCCESS: Systemd directories created"
+    else
+        echo "ERROR: Failed to create Systemd directories" >&2
+        return 1
+    fi
+
+    # Set vm overcommit for redis in sysctl
+    echo "INFO: Setting vm.overcommit_memory for redis"
+    if run_with_sudo sysctl vm.overcommit_memory=1 && \
+       echo "$SUDO_PASSWORD" | sudo -S sh -c "echo 'vm.overcommit_memory=1' > /etc/sysctl.d/99-redis.conf" 2>/dev/null; then
+        echo "SUCCESS: Set vm.overcommit_memory and updated /etc/sysctl.d/99-redis.conf"
+    else
+        echo "ERROR: Failed to set vm.overcommit_memory or update /etc/sysctl.d/99-redis.conf" >&2
+        return 1
+    fi
+
+    # Copy pod yaml file
+    echo "INFO: Copying Service file"
+    if podman unshare cp -f gitlab-pod.yml /mission-share/podman/containers/gitlab-pod.yml; then
+        echo "SUCCESS: pod yml file copied"
+    else
+        echo "ERROR: Failed to copy pod yml file" >&2
+        return 1
+    fi
+
+    echo "INFO: Starting initial Gitlab pod"
+    if podman kube play --replace /mission-share/podman/containers/gitlab-pod.yml; then
+        echo "SUCCESS: Initial Gitlab pod started"
+    else
+        echo "ERROR: Failed to start initial Gitlab pod" >&2
+        return 1
+    fi
+
+    echo "INFO: Generating systemd service files for Gitlab pod"
+    if podman generate systemd --name --files gitlab && \
+       mv -fv *.service ~/.config/systemd/user/; then
+        echo "SUCCESS: Systemd service files generated and moved"
+    else
+        echo "ERROR: Failed to generate or move systemd service files" >&2
+        return 1
+    fi
+
+    echo "INFO: Reloading systemd user daemon"
+    if systemctl --user daemon-reload; then
+        echo "SUCCESS: Systemd user daemon reloaded"
+    else
+        echo "ERROR: Failed to reload systemd user daemon" >&2
+        return 1
+    fi
+
+    echo "INFO: Stopping existing Gitlab pod if running - so we can start it with systemctl"
+    if podman pod stop gitlab 2>/dev/null; then
+        echo "SUCCESS: Existing Gitlab pod stopped or not running"
+    else
+        echo "INFO: No Gitlab pod was running or stop command ignored"
+    fi
+
+    echo "INFO: Enabling and starting pod-gitlab.service"
+    if systemctl --user enable --now pod-gitlab.service; then
+        echo "SUCCESS: pod-gitlab.service enabled and started"
+    else
+        echo "ERROR: Failed to enable or start pod-gitlab.service" >&2
+        return 1
+    fi
 
     sleep 3
+    echo "INFO: Listing all containers"
     podman ps -a
-    echo "Gitlab Pod created and started successfully!"
+    echo "SUCCESS: Gitlab pod created and started"
     podman ps
 
-    # Enable linger - was previously done in system settings, but ensure it here too
-    loginctl enable-linger
+    echo "INFO: Enabling linger for user $USER"
+    if loginctl enable-linger; then
+        echo "SUCCESS: Linger enabled for user $USER"
+    else
+        echo "ERROR: Failed to enable linger for user $USER" >&2
+        return 1
+    fi
 
-    echo -e "\nAll done! You should now have a running pod with:"
-    echo "- Gitlab on port 2200, 9443, 8088"
-    # change back to installer dir
-    cd $OLDPWD
+    echo "SUCCESS: Gitlab pod deployment completed"
+    echo "INFO: Gitlab available on ports 2200, 9443, 8088"
+    cd "$OLDPWD"
 }
 
 build_and_start_pod() {
-    echo -e "\n[USER] Building and Starting Pod..."
+    echo "INFO: Building and starting OGS pod"
 
-    # Check permissions on system files
-    check_permission "/usr/share/rhel/secrets/rhsm/syspurpose/syspurpose.json" "644"
-    check_permission "/etc/yum.repos.d/redhat.repo" "644"
+    echo "INFO: Checking permissions on system files"
+    if check_permission "/usr/share/rhel/secrets/rhsm/syspurpose/syspurpose.json" "644" && \
+       check_permission "/etc/yum.repos.d/redhat.repo" "644"; then
+        echo "SUCCESS: System file permissions verified"
+    else
+        echo "ERROR: System file permission checks failed" >&2
+        return 1
+    fi
+
     podmanshare="/mission-share/podman"
-    run_with_sudo chcon -t -R container_file_t $podmanshare
-    run_with_sudo restorecon -R $podmanshare
+    echo "INFO: Setting SELinux context for $podmanshare"
+    if run_with_sudo chcon -t container_file_t -R $podmanshare; then
+        echo "SUCCESS: SELinux context set for $podmanshare"
+    else
+        echo "ERROR: Failed to set SELinux context for $podmanshare"
+        return 1
+    fi
 
-    # Stop existing pod if running
-    echo "Stopping ogs pod if running..."
-    podman pod stop ogs
+    if run_with_sudo restorecon -R $podmanshare; then
+	echo "SUCCESS: SELinux restored context for $podmanshare"
+    else
+        echo "ERROR: Failed to set SELinux context for $podmanshare"
+        return 1
+    fi
 
-    #sadly, with all this customization, we have to 777 some dirs
-    podman unshare chmod -v 0777 /mission-share/podman/containers/{grafana,mimir,loki,nifi,nifi/*}
 
-    # Load versions
-    . versions.txt
 
-    # Generate and deploy pod YAML
-    echo "Generating new pod YAML from template..."
-    cd ogs-pod || return 1
-    cat ogs-pod.yml.template | sed "s|HOMEDIR|/mission-share|g" | \
-        sed "s|GRAFANA_VERSION|$GRAFANA_VERSION|g" | \
-        sed "s|LOKI_VERSION|$LOKI_VERSION|g" | \
-        sed "s|MIMIR_VERSION|$MIMIR_VERSION|g" | \
-	sed "s|GITLAB_VERSION|$GITLAB_VERSION|g" | \
-        sed "s|--UID--|$UID|g" | \
-        sed "s|--GID--|$UID|g" > ogs-pod.yml
+    echo "INFO: Stopping OGS pod if running - in case we need to replace it, has to be stopped"
+    if podman pod stop -t 60 ogs 2>/dev/null; then
+        echo "SUCCESS: OGS pod stopped or not running"
+    else
+        echo "INFO: No OGS pod was running or stop command ignored"
+    fi
 
-    #echo "Building pod with --replace..."
-    #podman play kube --replace ogs-pod.yml
+    echo "INFO: Setting permissions on container directories"
+    if podman unshare chmod -v 0777 /mission-share/podman/containers/{grafana,mimir,loki,nifi,nifi/*}; then
+        echo "SUCCESS: Container directory permissions set"
+    else
+        echo "ERROR: Failed to set container directory permissions" >&2
+        return 1
+    fi
 
-    echo "Creating Systemd files to manage pod with systemd..."
-    # Create Quadlet directory
-     mkdir -p ~/.config/containers/systemd
-     mkdir -p ~/.config/systemd/user
+    echo "INFO: Loading versions from versions.txt"
+    if . versions.txt; then
+        echo "SUCCESS: Versions loaded"
+    else
+        echo "ERROR: Failed to load versions.txt" >&2
+        return 1
+    fi
 
-    # Copy Quadlet file (ensure podman unshare if needed for permissions)
-    podman unshare cp -f ogs-pod.yml /mission-share/podman/containers/ogs-pod.yml
-    echo "Starting initial pod..."
-    podman kube play --replace --userns=keep-id /mission-share/podman/containers/ogs-pod.yml
-    echo "Generating systemd service files for podman pod ogs..."
-    podman generate systemd --name --files ogs
-    mv -fv *.service ~/.config/systemd/user/
+    echo "INFO: Generating new pod YAML from template"
+    cd ogs-pod || { echo "ERROR: Failed to change to ogs-pod directory" >&2; return 1; }
+    if cat ogs-pod.yml.template | \
+       sed "s|HOMEDIR|/mission-share|g" | \
+       sed "s|GRAFANA_VERSION|$GRAFANA_VERSION|g" | \
+       sed "s|LOKI_VERSION|$LOKI_VERSION|g" | \
+       sed "s|MIMIR_VERSION|$MIMIR_VERSION|g" | \
+       sed "s|GITLAB_VERSION|$GITLAB_VERSION|g" | \
+       sed "s|--UID--|$UID|g" | \
+       sed "s|--GID--|$UID|g" > ogs-pod.yml; then
+        echo "SUCCESS: Generated OGS pod YAML"
+    else
+        echo "ERROR: Failed to generate OGS pod YAML" >&2
+        return 1
+    fi
 
-    # Reload systemd to generate service
-    systemctl --user daemon-reload
+    echo "INFO: Creating Systemd directories"
+    if mkdir -p ~/.config/containers/systemd ~/.config/systemd/user; then
+        echo "SUCCESS: Systemd directories created"
+    else
+        echo "ERROR: Failed to create Systemd directories" >&2
+        return 1
+    fi
 
-    #stopping pod if it exists
-    echo "Stopping existing ogs pod if running..."
-    podman pod stop ogs
+    echo "INFO: Copying pod yml file"
+    if podman unshare cp -f ogs-pod.yml /mission-share/podman/containers/ogs-pod.yml; then
+        echo "SUCCESS: pod yml file copied"
+    else
+        echo "ERROR: Failed to copy pod yml file" >&2
+        return 1
+    fi
 
-    # Start the service with systemd
-    echo "Enabling and starting pod-ogs.service..."
-    systemctl --user enable --now pod-ogs.service
+    echo "INFO: Starting initial OGS pod"
+    if podman kube play --replace --userns=keep-id /mission-share/podman/containers/ogs-pod.yml; then
+        echo "SUCCESS: Initial OGS pod started"
+    else
+        echo "ERROR: Failed to start initial OGS pod" >&2
+        return 1
+    fi
+
+    echo "INFO: Generating systemd service files for OGS pod"
+    if podman generate systemd --name --files ogs && \
+       mv -fv *.service ~/.config/systemd/user/; then
+        echo "SUCCESS: Systemd service files generated and moved"
+    else
+        echo "ERROR: Failed to generate or move systemd service files" >&2
+        return 1
+    fi
+
+    echo "INFO: Reloading systemd user daemon"
+    if systemctl --user daemon-reload; then
+        echo "SUCCESS: Systemd user daemon reloaded"
+    else
+        echo "ERROR: Failed to reload systemd user daemon" >&2
+        return 1
+    fi
+
+    echo "INFO: Stopping existing OGS pod if running - so we can start it with systemctl"
+    if podman pod stop -t 60 ogs 2>/dev/null; then
+        echo "SUCCESS: Existing OGS pod stopped or not running"
+    else
+        echo "INFO: No OGS pod was running or stop command ignored"
+    fi
+
+    echo "INFO: Enabling and starting pod-ogs.service"
+    if systemctl --user enable --now pod-ogs.service; then
+        echo "SUCCESS: pod-ogs.service enabled and started"
+    else
+        echo "ERROR: Failed to enable or start pod-ogs.service" >&2
+        return 1
+    fi
 
     sleep 3
+    echo "INFO: Listing all containers"
     podman ps -a
-    echo "Pod created and started successfully!"
+    echo "SUCCESS: OGS pod created and started"
     podman ps
 
-    # Enable linger - was previously done in system settings, but ensure it here too
-    loginctl enable-linger
+    echo "INFO: Enabling linger for user $USER"
+    if loginctl enable-linger; then
+        echo "SUCCESS: Linger enabled for user $USER"
+    else
+        echo "ERROR: Failed to enable linger for user $USER" >&2
+        return 1
+    fi
 
-    echo -e "\nAll done! You should now have a running pod with:"
-    echo "- Grafana on port 3000 (admin/admin)"
-    echo "- Mimir on port 9009"
-    echo "- Loki on port 3100"
-    echo "- Nifi on port 8443,8080,3200,9092"
-    echo "- Parent NGINX proxy on port 80 and 443"
-    # change back to installer dir
-    cd $OLDPWD
+    echo "SUCCESS: OGS pod deployment completed"
+    echo "INFO: OGS services available:"
+    echo "INFO: - Grafana on port 3000 (admin/admin)"
+    echo "INFO: - Mimir on port 9009"
+    echo "INFO: - Loki on port 3100"
+    echo "INFO: - Nifi on ports 8443, 8080, 3200, 9092"
+    echo "INFO: - Parent NGINX proxy on ports 80 and 443"
+    cd "$OLDPWD"
 }
 
 # ---------- Helper Functions ----------
@@ -1035,11 +1384,12 @@ check_permission() {
     local actual_perm=$(stat -c "%a" "$file" 2>/dev/null)
 
     if [[ "$actual_perm" != "$expected_perm" ]]; then
-        echo "[FAIL] $file has permissions $actual_perm (expected $expected_perm)"
-        echo "Please run the system configuration first or manually fix with:"
-        echo "sudo chmod $expected_perm $file"
+        echo "ERROR: $file has permissions $actual_perm (expected $expected_perm)" >&2
+        echo "INFO: Please run the system configuration first or manually fix with:" >&2
+        echo "sudo chmod $expected_perm $file" >&2
         return 1
     fi
+    echo "SUCCESS: $file permissions verified as $expected_perm"
     return 0
 }
 
@@ -1048,27 +1398,29 @@ safe_modify() {
     local action="$2"
     local description="$3"
 
-    echo -n "${description}... "
+    echo -n "INFO: ${description}... "
     if [ -f "$file" ]; then
-        eval "$action"
-        echo "Done."
+        if eval "$action"; then
+            echo "SUCCESS: ${description} completed"
+        else
+            echo "ERROR: Failed to ${description}" >&2
+            return 1
+        fi
     else
-        echo "Skipped (file not found)."
+        echo "INFO: Skipped (file not found)"
     fi
 }
 
 check_success() {
     if [ $? -ne 0 ]; then
-        echo "Error: $1" >&2
+        echo "ERROR: $1" >&2
         return 1
     fi
+    echo "SUCCESS: $1 completed"
 }
 
-#!/bin/bash
+# ---------- Pod Management Functions ----------
 
-#!/bin/bash
-
-# Function to stop a pod by name
 stop_pod_named() {
     local podname="$1"
 
@@ -1094,7 +1446,6 @@ stop_pod_named() {
     return 0
 }
 
-# Function to stop and delete a pod by name
 stop_and_delete_pod() {
     local podname="$1"
 
@@ -1150,7 +1501,6 @@ stop_and_delete_pod() {
     return 0
 }
 
-# Function to clean up pod and container service files
 cleanup_pod_services() {
     local podname="$1"
     local systemd_user_dir="$HOME/.config/systemd/user"
@@ -1201,7 +1551,7 @@ cleanup_pod_services() {
         echo "INFO: Found container service dependencies: $wants_services"
     fi
 
-    # Stop associated container services (but do not disable, as they are not enabled)
+    # Stop associated container services
     while IFS= read -r service; do
         if [[ -z "$service" ]]; then
             continue
@@ -1266,7 +1616,6 @@ cleanup_pod_services() {
     return 0
 }
 
-
 # ---------- Menu System ----------
 
 show_menu() {
@@ -1305,10 +1654,8 @@ show_menu() {
     echo " u5) Remove Firewall rules"
     echo " u6) podman system reset - removes all podman images, volumes, containers"
     echo "     -- This does not delete container files in /mission share"
-    echo "     -- But it will remove containers and images and pods"
     echo " NUKE-IT) Removes all data, basically all the options above in one step"
 }
-
 
 # ---------- Main Execution ----------
 
@@ -1321,8 +1668,8 @@ while true; do
     read -p "Enter your choice: " choice
 
     case $choice in
-	1) configure_system_settings ;;
-	2) provision_disk ;;
+        1) configure_system_settings ;;
+        2) provision_disk ;;
         3) copy_source_directories ;;
         4) generate_ssl_keys ;;
         5) create_and_share_nfs ;;
@@ -1331,39 +1678,39 @@ while true; do
         8i) pull_container_images ;;
         8n) install_tarball_images ;;
         9) build_and_start_pod ;;
-	9g) build_and_start_pod_gitlab ;;
+        9g) build_and_start_pod_gitlab ;;
         u1)
             if stop_and_delete_pod "ogs"; then
-                echo "INFO: Successfully stopped and deleted pod 'ogs'"
+                echo "SUCCESS: Stopped and deleted pod 'ogs'"
             else
                 echo "ERROR: Failed to stop and delete pod 'ogs'" >&2
             fi
             if cleanup_pod_services "ogs"; then
-                echo "INFO: Successfully cleaned up services for pod 'ogs'"
+                echo "SUCCESS: Cleaned up services for pod 'ogs'"
             else
                 echo "ERROR: Failed to clean up services for pod 'ogs'" >&2
             fi
             ;;
         u2)
             if stop_and_delete_pod "gitlab"; then
-                echo "INFO: Successfully stopped and deleted pod 'gitlab'"
+                echo "SUCCESS: Stopped and deleted pod 'gitlab'"
             else
                 echo "ERROR: Failed to stop and delete pod 'gitlab'" >&2
             fi
             if cleanup_pod_services "gitlab"; then
-                echo "INFO: Successfully cleaned up services for pod 'gitlab'"
+                echo "SUCCESS: Cleaned up services for pod 'gitlab'"
             else
                 echo "ERROR: Failed to clean up services for pod 'gitlab'" >&2
             fi
             ;;
-	u1d) stop_and_delete_pod "ogs" ;;
-	u2d) stop_and_delete_pod "gitlab" ;;
+        u1d) stop_and_delete_pod "ogs" ;;
+        u2d) stop_and_delete_pod "gitlab" ;;
         0)
-            echo "Exiting. Have a nice day!"
+            echo "INFO: Exiting. Have a nice day!"
             exit 0
             ;;
         *)
-            echo "Invalid option. Please try again."
+            echo "ERROR: Invalid option. Please try again" >&2
             ;;
     esac
 
