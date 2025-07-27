@@ -233,11 +233,56 @@ rename_ssl() {
  echo "SUCCESS: SSL file renaming completed"
 }
 
+generate_ssl_keys_gitlab() {
+ cd /mission-share/vast-ca/
+ echo "INFO: Creating SSL certificates"
+
+ echo "INFO: Please enter desired FQDN for GITLAB(e.g. gitlab.army.local):"
+ read -r gitlab_fqdn
+ echo "INFO: You entered: $gitlab_fqdn"
+
+ hostname -i | tr ' ' '\n' | sort | uniq
+ echo "INFO: Please enter the IP address for hosting GitLab:"
+ read -r msnsvr_ip
+ echo "INFO: You entered: $msnsvr_ip"
+
+ local temp_file=$(mktemp)
+ echo "$msnsvr_ip $gitlab_fqdn" > "$temp_file"
+ echo "INFO: Updating /etc/hosts with gitlab details"
+ if echo "$SUDO_PASSWORD" | sudo -S sh -c "cat '$temp_file' >> /etc/hosts" 2>/dev/null; then
+ echo "SUCCESS: Updated /etc/hosts"
+ else
+ echo "ERROR: Failed to update /etc/hosts" >&2
+ rm -f "$temp_file"
+ return 1
+ fi
+ rm -f "$temp_file"
+
+ # Creating Gitlab Certs
+ echo -e "\n\nINFO: Creating Gitlab certificates"
+ printf "$gitlab_fqdn\n\nUS\nMaryland\nAPG\nFII\n3650\nsilkwave\n" | ./server-cert-gen.sh /mission-share/podman/containers/keys/gitlab/
+ echo "GITLAB_DOMAIN=$gitlab_fqdn" > /mission-share/podman/containers/keys/gitlab/GITLAB_DOMAIN
+ podman unshare chmod 0644 /mission-share/podman/containers/keys/gitlab/GITLAB_DOMAIN
+ #dont rename gitlab certs, instead just move them
+ #if rename_ssl "$gitlab_fqdn" "/mission-share/podman/containers/keys/gitlab/"; then
+ 
+ if podman unshare chmod 0644 /mission-share/podman/containers/keys/gitlab/*; then
+ echo "SUCCESS: Gitlab certificates created and renamed"
+ else
+ echo "ERROR: Failed to create or chmod gitlab certificates" >&2
+ return 1
+ fi
+
+ cd "$OLDPWD"
+ echo "SUCCESS: SSL certificate generation completed"
+
+}
+
 generate_ssl_keys() {
  cd /mission-share/vast-ca/
  echo "INFO: Creating SSL certificates"
 
- hostname -i
+ hostname -i | tr ' ' '\n' | sort | uniq
  echo "INFO: Please enter msnsvr IP address:"
  read -r msnsvr_ip
  echo "INFO: You entered: $msnsvr_ip"
@@ -959,7 +1004,7 @@ copy_source_directories() {
           "$path/nifi" \
           "$path/nifi/"{conf,lib,logs} \
           "$path/configs" \
-          "$path/keys/"{grafana,mimir,loki,nifi,nginx} \
+          "$path/keys/"{grafana,mimir,loki,nifi,nginx,gitlab} \
           "$rootpath/tide/"{out,in,ccads-in,ccads-out,arc-out,fuse-out,sceptre-in,sceptre-out,esa-out,eped-out,fail,tmp,save,idm-in/save} \
           "$rootpath/audit_logs" \
           "$path/gitlab/"{logs,config,data}; then
@@ -1201,11 +1246,15 @@ build_and_start_pod_gitlab() {
     # Use $IP_ADDRESS in the rest of your script
     echo "Proceeding with IP address: $IP_ADDRESS"
 
+    #read in domain from the ssl stage
+    . /mission-share/podman/containers/keys/gitlab/GITLAB_DOMAIN
+
     # Generate and deploy pod YAML
     echo "INFO: Generating new GitLab pod YAML from template"
     cd gitlab-pod || { echo "ERROR: Failed to change to gitlab-pod directory" >&2; return 1; }
     if cat gitlab-pod.yml.template | \
        sed "s|IP_ADDRESS|$IP_ADDRESS|g" | \
+       sed "s|GITLAB_DOMAIN|$GITLAB_DOMAIN|g" | \
        sed "s|GITLAB_VERSION|$GITLAB_VERSION|g" > gitlab-pod.yml; then
         echo "SUCCESS: Generated Gitlab pod YAML"
     else
@@ -1712,13 +1761,14 @@ show_menu() {
     echo "       Monitoring Stack Deployment Tool - Ver. $script_version"
     echo "========================================================================"
     echo " Privileged Operations:"
-    echo " 1. Configure System Settings"
-    echo " 2. Provision Disk for Podman Data"
-    echo " 3. Copy container source directories"
-    echo " 4. Generate SSL Certificates"
-    echo " 5. Configure NFS Server"
-    echo " 6. Install and Configure Nginx Proxy"
-    echo " 7. Configure Firewall"
+    echo " 1) Configure System Settings"
+    echo " 2) Provision Disk for Podman Data"
+    echo " 3) Copy container source directories"
+    echo " 4) Generate SSL Certificates - GLAM packages"
+    echo " 4g) Generate SSL Certificates - GitLab"
+    echo " 5) Configure NFS Server"
+    echo " 6) Install and Configure Nginx Proxy"
+    echo " 7) Configure Firewall"
     echo ""
     echo "======================== Image Imports ================================="
     echo "     NOTE: Choose based off networking available "
@@ -1760,7 +1810,8 @@ while true; do
         2) provision_disk ;;
         3) copy_source_directories ;;
         4) generate_ssl_keys ;;
-        5) create_and_share_nfs ;;
+        4g) generate_ssl_keys_gitlab ;;
+	5) create_and_share_nfs ;;
         6) install_nginx ;;
         7) configure_firewall ;;
         8i) pull_container_images ;;

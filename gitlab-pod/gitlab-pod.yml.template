@@ -25,11 +25,15 @@ spec:
       hostPath:
         path: /mission-share/podman/containers/configs/resolv.conf
         type: File
+    - name: ssl
+      hostPath:
+        path: /mission-share/podman/containers/keys/gitlab
+        type: DirectoryOrCreate
 
   containers:
     - name: gitlab
       image: localhost/gitlab-ce-custom:GITLAB_VERSION
-      hostname: IP_ADDRESS
+      hostname: GITLAB_DOMAIN
       securityContext:
         runAsUser: 0
         runAsGroup: 0
@@ -44,9 +48,11 @@ spec:
         # Optional: Try GITLAB_OMNIBUS_CONFIG
         - name: GITLAB_OMNIBUS_CONFIG
           value: |
-            external_url 'http://IP_ADDRESS:8088'
-            nginx['listen_port'] = 80
+            external_url 'https://GITLAB_DOMAIN:9443'
+            nginx['listen_port'] = 443
             nginx['listen_address'] = ['0.0.0.0']
+            gitlab_https = true
+            nginx['listen_https'] = true
             gitlab_rails['initial_root_password'] = '0o9i8u7y)O(I*U&Y'
             gitlab_rails['initial_root_email'] = 'administrator@localhost.com'
       volumeMounts:
@@ -56,6 +62,8 @@ spec:
           mountPath: /var/opt/gitlab:Z
         - name: gitlab-logs
           mountPath: /var/log/gitlab:Z
+        - name: ssl
+          mountPath: /etc/gitlab/ssl:Z
         - name: resolv-conf
           mountPath: /etc/resolv.conf
       ports:
