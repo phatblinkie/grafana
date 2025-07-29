@@ -45,7 +45,6 @@ spec:
           value: "administrator@localhost.com"
         - name: GITLAB_ROOT_PASSWORD
           value: "0o9i8u7y)O(I*U&Y"
-        # Optional: Try GITLAB_OMNIBUS_CONFIG
         - name: GITLAB_OMNIBUS_CONFIG
           value: |
             external_url 'https://gitlab.phat.lab:9443'
@@ -55,6 +54,28 @@ spec:
             nginx['listen_https'] = true
             gitlab_rails['initial_root_password'] = '0o9i8u7y)O(I*U&Y'
             gitlab_rails['initial_root_email'] = 'administrator@localhost.com'
+            gitlab_rails['ldap_enabled'] = true
+            gitlab_rails['ldap_servers'] = YAML.load <<-'EOS'
+              main: # 'main' is the GitLab 'provider ID' of this LDAP server
+                label: 'LDAP'
+                host: '192.168.10.200'
+                port: 389
+                uid: 'sAMAccountName'
+                bind_dn: 'administrator@phat.lab'
+                password: '0o9i8u7y)O(I*U&Y'
+                encryption: 'plain' # "start_tls" or "simple_tls" or "plain"
+                verify_certificates: true
+                smartcard_auth: false
+                active_directory: true
+                smartcard_ad_cert_field: 'altSecurityIdentities'
+                smartcard_ad_cert_format: null # 'issuer_and_serial_number', 'issuer_and_subject' , 'principal_name'
+                allow_username_or_email_login: false
+                lowercase_usernames: true
+                block_auto_created_users: false
+                base: 'CN=Users,DC=phat,DC=lab'
+                user_filter: ''
+              EOS
+
       volumeMounts:
         - name: gitlab-config
           mountPath: /etc/gitlab:Z
