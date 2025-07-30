@@ -48,6 +48,8 @@ spec:
         - name: GITLAB_OMNIBUS_CONFIG
           value: |
             external_url 'https://gitlab.phat.lab:9443'
+            gitlab_rails['github_enabled'] = true
+            gitlab_rails['gitea_enabled'] = true
             nginx['listen_port'] = 443
             nginx['listen_address'] = ['0.0.0.0']
             gitlab_https = true

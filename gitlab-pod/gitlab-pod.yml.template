@@ -42,18 +42,18 @@ spec:
           memory: "12560Mi"
       env:
         - name: GITLAB_ROOT_EMAIL
-          value: "administrator@localhost.com"
+          value: "GITLAB_ADMIN_USERNAME"
         - name: GITLAB_ROOT_PASSWORD
-          value: "0o9i8u7y)O(I*U&Y"
+          value: "GITLAB_ADMIN_PW"
         - name: GITLAB_OMNIBUS_CONFIG
           value: |
             external_url 'https://GITLAB_DOMAIN:9443'
             nginx['listen_port'] = 443
-            nginx['listen_address'] = ['0.0.0.0']
+            nginx['listen_address'] = ['IP_ADDRESS']
             gitlab_https = true
             nginx['listen_https'] = true
-            gitlab_rails['initial_root_password'] = '0o9i8u7y)O(I*U&Y'
-            gitlab_rails['initial_root_email'] = 'administrator@localhost.com'
+            gitlab_rails['initial_root_password'] = 'GITLAB_ADMIN_PW'
+            gitlab_rails['initial_root_email'] = 'GITLAB_ADMIN_USERNAME'
             gitlab_rails['ldap_enabled'] = true
             gitlab_rails['ldap_servers'] = YAML.load <<-'EOS'
               main: # 'main' is the GitLab 'provider ID' of this LDAP server

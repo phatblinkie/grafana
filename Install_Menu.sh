@@ -23,6 +23,13 @@ if ! command -v git-lfs &> /dev/null; then
  exit 1
 fi
 
+
+# Check if 'ip' command is available
+if ! command -v ip >/dev/null 2>&1; then
+   echo "ERROR: 'ip' command not found. Please install iproute2."
+   exit 1
+fi
+
 # Integrated Monitoring Stack Deployment Tool
 # Combines both privileged (root) and non-privileged (user) operations
 # Always requests sudo password at start and uses it when needed
@@ -1164,16 +1171,6 @@ build_and_start_pod_gitlab() {
         return 1
     fi
 
-    # Load versions
-    echo "INFO: Loading versions from versions.txt"
-    if . versions.txt; then
-        echo "SUCCESS: Versions loaded"
-    else
-        echo "ERROR: Failed to load versions.txt" >&2
-        return 1
-    fi
-
-
     podmanshare="/mission-share/podman"
     echo "INFO: Setting SELinux context for $podmanshare"
     if run_with_sudo chcon -t container_file_t -R $podmanshare; then
@@ -1190,11 +1187,30 @@ build_and_start_pod_gitlab() {
         return 1
     fi
 
-    # Check if 'ip' command is available
-    if ! command -v ip >/dev/null 2>&1; then
-        echo "ERROR: 'ip' command not found. Please install iproute2."
-        exit 1
+    # Load versions
+    echo "INFO: Loading versions from versions.txt"
+    if . versions.txt; then
+        echo "SUCCESS: Versions loaded"
+    else
+        echo "ERROR: Failed to load versions.txt" >&2
+        return 1
     fi
+
+    #read in domain from the ssl stage
+    . /mission-share/podman/containers/keys/gitlab/GITLAB_DOMAIN
+
+    #ask admin username
+     GITLAB_ADMIN_USERNAME='admin@localhost.com'
+     echo "INFO: Please create admin email for GitLab"
+     read -r GITLAB_ADMIN_USERNAME
+     echo "INFO: You entered: $GITLAB_ADMIN_USERNAME"
+
+    #ask admin password
+    GITLAB_ADMIN_PW='!Changeme12345'
+    echo "INFO: Please Enter the admin login password"
+    read -r GITLAB_ADMIN_PW
+    echo "INFO: You entered: $GITLAB_ADMIN_PW"
+
 
     # Get list of unique IP addresses
     mapfile -t ip_list < <(get_ip_addresses)
@@ -1211,7 +1227,7 @@ build_and_start_pod_gitlab() {
     for i in "${!ip_list[@]}"; do
         echo "$((i+1)). ${ip_list[i]}"
     done
-    echo "$(( ${#ip_list[@]} + 1 )). Enter a custom IP address"
+    echo "$(( ${#ip_list[@]} + 1 )). Enter a custom IP address ( use 0.0.0.0 for all addresses )"
 
     # Prompt for selection
     while true; do
@@ -1246,8 +1262,9 @@ build_and_start_pod_gitlab() {
     # Use $IP_ADDRESS in the rest of your script
     echo "Proceeding with IP address: $IP_ADDRESS"
 
-    #read in domain from the ssl stage
-    . /mission-share/podman/containers/keys/gitlab/GITLAB_DOMAIN
+    # Gather LDAP information
+
+
 
     # Generate and deploy pod YAML
     echo "INFO: Generating new GitLab pod YAML from template"
@@ -1255,6 +1272,8 @@ build_and_start_pod_gitlab() {
     if cat gitlab-pod.yml.template | \
        sed "s|IP_ADDRESS|$IP_ADDRESS|g" | \
        sed "s|GITLAB_DOMAIN|$GITLAB_DOMAIN|g" | \
+       sed "s|GITLAB_ADMIN_USERNAME|$GITLAB_ADMIN_USERNAME|g" | \
+       sed "s|GITLAB_ADMIN_PW|$GITLAB_ADMIN_PW|g" | \
        sed "s|GITLAB_VERSION|$GITLAB_VERSION|g" > gitlab-pod.yml; then
         echo "SUCCESS: Generated Gitlab pod YAML"
     else
