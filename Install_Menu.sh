@@ -1151,8 +1151,300 @@ get_ip_addresses() {
     ip addr show | grep 'inet ' | awk '{print $2}' | cut -d'/' -f1 | grep -v '^127\.' | sort -u
 }
 
+#!/bin/bash
+
+# Subroutine to gather LDAP configuration from user
+gather_ldap_config() {
+    local host bind_dn password base
+    local password_escaped bind_dn_escaped base_escaped
+
+    # Prompt for host
+    while true; do
+        read -p "Enter LDAP server host (e.g., 192.168.10.200): " host
+        # Basic IP validation
+        if [[ $host =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+            break
+        else
+            echo "ERROR: Please enter a valid IP address."
+        fi
+    done
+
+    # Prompt for bind_dn
+    while true; do
+        read -p "Enter LDAP binding service account (e.g., administrator@localdomain.mil): " bind_dn
+        if [[ -n "$bind_dn" ]]; then
+            break
+        else
+            echo "ERROR: Bind DN cannot be empty."
+        fi
+    done
+
+    # Prompt for password
+    while true; do
+        read -s -p "Enter LDAP password: " password
+        echo
+        if [[ -n "$password" ]]; then
+            break
+        else
+            echo "ERROR: Password cannot be empty."
+        fi
+    done
+
+    # Prompt for base, prepopulated with example
+    while true; do
+        read -e -p "Enter LDAP user OU base (e.g., CN=Users,DC=localdomain,DC=mil): " -i "CN=Users,DC=localdomain,DC=mil" base
+        if [[ -n "$base" ]]; then
+            break
+        else
+            echo "ERROR: Base cannot be empty."
+        fi
+    done
+
+    # Escape special characters for sed
+    password_escaped=$(echo "$password" | sed -e 's/[\/&]/\\&/g')
+    bind_dn_escaped=$(echo "$bind_dn" | sed -e 's/[\/&]/\\&/g')
+    base_escaped=$(echo "$base" | sed -e 's/[\/&]/\\&/g')
+
+    # Store escaped values for use in the main function
+    LDAP_HOST="$host"
+    LDAP_BIND_DN="$bind_dn_escaped"
+    LDAP_PASSWORD="$password_escaped"
+    LDAP_BASE="$base_escaped"
+
+
+    echo "Summary for LDAP settings"
+    echo 
+    echo "--------------------------------"
+    echo "LDAP_HOST=$host"
+    echo "LDAP_BIND_DN=$bind_dn_escaped"
+    echo "LDAP_PASSWORD=$password_escaped"
+    echo "LDAP_BASE=$base_escaped"
+    echo "--------------------------------"
+
+}
 
 build_and_start_pod_gitlab() {
+    echo "INFO: Building and starting Gitlab pod"
+
+    echo "INFO: Stopping Gitlab pod if running"
+    if podman pod stop gitlab 2>/dev/null; then
+        echo "SUCCESS: Gitlab pod stopped or not running"
+    else
+        echo "INFO: No Gitlab pod was running or stop command ignored"
+    fi
+
+    echo "INFO: Setting permissions on Gitlab directories"
+    if podman unshare chmod -v 0777 /mission-share/podman/containers/gitlab && \
+       podman unshare chmod -v 0777 /mission-share/podman/containers/gitlab/{config,logs,data}; then
+        echo "SUCCESS: Gitlab directory permissions set"
+    else
+        echo "ERROR: Failed to set Gitlab directory permissions" >&2
+        return 1
+    fi
+
+    podmanshare="/mission-share/podman"
+    echo "INFO: Setting SELinux context for $podmanshare"
+    if run_with_sudo chcon -t container_file_t -R $podmanshare; then
+        echo "SUCCESS: SELinux context set for $podmanshare"
+    else
+        echo "ERROR: Failed to set SELinux context for $podmanshare"
+        return 1
+    fi
+
+    if run_with_sudo restorecon -R $podmanshare; then
+        echo "SUCCESS: SELinux restored context for $podmanshare"
+    else
+        echo "ERROR: Failed to set SELinux context for $podmanshare"
+        return 1
+    fi
+
+    # Set vm overcommit for redis in sysctl
+    echo "INFO: Setting vm.overcommit_memory for redis"
+    if run_with_sudo sysctl vm.overcommit_memory=1 && \
+       echo "$SUDO_PASSWORD" | sudo -S sh -c "echo 'vm.overcommit_memory=1' > /etc/sysctl.d/99-redis.conf" 2>/dev/null; then
+        echo "SUCCESS: Set vm.overcommit_memory and updated /etc/sysctl.d/99-redis.conf"
+    else
+        echo "ERROR: Failed to set vm.overcommit_memory or update /etc/sysctl.d/99-redis.conf" >&2
+        return 1
+    fi
+
+    # Load versions
+    echo "INFO: Loading versions from versions.txt"
+    if . versions.txt; then
+        echo "SUCCESS: Versions loaded"
+    else
+        echo "ERROR: Failed to load versions.txt" >&2
+        return 1
+    fi
+
+    # Read domain from the ssl stage
+    . /mission-share/podman/containers/keys/gitlab/GITLAB_DOMAIN
+
+    # Ask admin username
+    GITLAB_ADMIN_USERNAME='admin@localhost.com'
+    echo "INFO: Please enter the admin email for GitLab (ex. $GITLAB_ADMIN_USERNAME)"
+    read -r GITLAB_ADMIN_USERNAME
+    echo "INFO: You entered: $GITLAB_ADMIN_USERNAME"
+
+    # Ask admin password
+    GITLAB_ADMIN_PW='!Changeme12345'
+    echo "INFO: Please Enter the admin login password (ex. $GITLAB_ADMIN_PW)"
+    read -r GITLAB_ADMIN_PW
+    echo "INFO: You entered: $GITLAB_ADMIN_PW"
+    gitlab_admin_password_escaped=$(echo "$GITLAB_ADMIN_PW" | sed -e 's/[\/&]/\\&/g')
+
+
+    # Get list of unique IP addresses
+    mapfile -t ip_list < <(get_ip_addresses)
+
+    # Check if any IP addresses were found
+    if [ ${#ip_list[@]} -eq 0 ]; then
+        echo "ERROR: No valid IP addresses found on this system."
+        exit 1
+    fi
+
+    # Display menu
+    echo "Select IP for Gitlab to bind to"
+    echo "Available IP addresses:"
+    for i in "${!ip_list[@]}"; do
+        echo "$((i+1)). ${ip_list[i]}"
+    done
+    echo "$(( ${#ip_list[@]} + 1 )). Enter a custom IP address ( use 0.0.0.0 for all addresses )"
+
+    # Prompt for selection
+    while true; do
+        echo -n "Please select an option (1-$(( ${#ip_list[@]} + 1 ))): "
+        read -r choice
+
+        # Validate choice is a number
+        if ! [[ "$choice" =~ ^[0-9]+$ ]]; then
+            echo "ERROR: Please enter a valid number."
+            continue
+        fi
+
+        # Check if choice is within range
+        if [ "$choice" -ge 1 ] && [ "$choice" -le "${#ip_list[@]}" ]; then
+            IP_ADDRESS="${ip_list[$((choice-1))]}"
+            echo "INFO: You selected IP address: $IP_ADDRESS"
+            break
+        elif [ "$choice" -eq $(( ${#ip_list[@]} + 1 )) ]; then
+            echo -n "INFO: Please enter a custom IP address: "
+            read -r IP_ADDRESS
+            if validate_ip "$IP_ADDRESS"; then
+                echo "INFO: You entered: $IP_ADDRESS"
+                break
+            else
+                echo "ERROR: Invalid IP address format. Please try again."
+            fi
+        else
+            echo "ERROR: Invalid option. Please select a number between 1 and $(( ${#ip_list[@]} + 1 ))."
+        fi
+    done
+
+    # Use $IP_ADDRESS in the rest of your script
+    echo "Proceeding with IP address: $IP_ADDRESS"
+
+    # Gather LDAP information
+    echo "INFO: Gathering LDAP configuration"
+    gather_ldap_config
+
+    # Generate and deploy pod YAML
+    echo "INFO: Generating new GitLab pod YAML from template"
+    cd gitlab-pod || { echo "ERROR: Failed to change to gitlab-pod directory" >&2; return 1; }
+    echo "substituting values in template file"
+    if cat gitlab-pod.yml.template | \
+       sed "s|IP_ADDRESS|$IP_ADDRESS|g" | \
+       sed "s|GITLAB_DOMAIN|$GITLAB_DOMAIN|g" | \
+       sed "s|GITLAB_ADMIN_USERNAME|$GITLAB_ADMIN_USERNAME|g" | \
+       sed "s|GITLAB_ADMIN_PW|$gitlab_admin_password_escaped|g" | \
+       sed "s|GITLAB_VERSION|$GITLAB_VERSION|g" | \
+       sed "s|host: 'LDAP_HOST'|host: '$LDAP_HOST'|" | \
+       sed "s|bind_dn: 'LDAP_BIND_DN'|bind_dn: '$LDAP_BIND_DN'|" | \
+       sed "s|password: 'LDAP_PASSWORD'|password: '$LDAP_PASSWORD'|" | \
+       sed "s|base: 'LDAP_BASE'|base: '$LDAP_BASE'|" > gitlab-pod.yml; then
+        echo "SUCCESS: Generated Gitlab pod YAML"
+    else
+        echo "ERROR: Failed to generate Gitlab pod YAML" >&2
+        return 1
+    fi
+
+    echo "INFO: Creating Systemd directories"
+    if mkdir -p ~/.config/containers/systemd ~/.config/systemd/user; then
+        echo "SUCCESS: Systemd directories created"
+    else
+        echo "ERROR: Failed to create Systemd directories" >&2
+        return 1
+    fi
+
+    # Copy pod yaml file
+    echo "INFO: Copying Service file"
+    if podman unshare cp -f gitlab-pod.yml /mission-share/podman/containers/gitlab-pod.yml; then
+        echo "SUCCESS: pod yml file copied"
+    else
+        echo "ERROR: Failed to copy pod yml file" >&2
+        return 1
+    fi
+
+    echo "INFO: Starting initial Gitlab pod"
+    if podman kube play --replace /mission-share/podman/containers/gitlab-pod.yml; then
+        echo "SUCCESS: Initial Gitlab pod started"
+    else
+        echo "ERROR: Failed to start initial Gitlab pod" >&2
+        return 1
+    fi
+
+    echo "INFO: Generating systemd service files for Gitlab pod"
+    if podman generate systemd --name --files gitlab && \
+       mv -fv *.service ~/.config/systemd/user/; then
+        echo "SUCCESS: Systemd service files generated and moved"
+    else
+        echo "ERROR: Failed to generate or move systemd service files" >&2
+        return 1
+    fi
+
+    echo "INFO: Reloading systemd user daemon"
+    if systemctl --user daemon-reload; then
+        echo "SUCCESS: Systemd user daemon reloaded"
+    else
+        echo "ERROR: Failed to reload systemd user daemon" >&2
+        return 1
+    fi
+
+    echo "INFO: Stopping existing Gitlab pod if running - so we can start it with systemctl"
+    if podman pod stop gitlab 2>/dev/null; then
+        echo "SUCCESS: Existing Gitlab pod stopped or not running"
+    else
+        echo "INFO: No Gitlab pod was running or stop command ignored"
+    fi
+
+    echo "INFO: Enabling and starting pod-gitlab.service"
+    if systemctl --user enable --now pod-gitlab.service; then
+        echo "SUCCESS: pod-gitlab.service enabled and started"
+    else
+        echo "ERROR: Failed to enable or start pod-gitlab.service" >&2
+        return 1
+    fi
+
+    sleep 3
+    echo "INFO: Listing all containers"
+    podman ps -a
+    echo "SUCCESS: Gitlab pod created and started"
+    podman ps
+
+    echo "INFO: Enabling linger for user $USER"
+    if loginctl enable-linger; then
+        echo "SUCCESS: Linger enabled for user $USER"
+    else
+        echo "ERROR: Failed to enable linger for user $USER" >&2
+        return 1
+    fi
+
+    echo "SUCCESS: Gitlab pod deployment completed"
+    echo "INFO: Gitlab available on ports 2200, 9443, 8088"
+    cd "$OLDPWD"
+}
+
+build_and_start_pod_gitlab_old() {
     echo "INFO: Building and starting Gitlab pod"
 
     echo "INFO: Stopping Gitlab pod if running"

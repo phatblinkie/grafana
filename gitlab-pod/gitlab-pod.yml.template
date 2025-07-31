@@ -58,11 +58,11 @@ spec:
             gitlab_rails['ldap_servers'] = YAML.load <<-'EOS'
               main: # 'main' is the GitLab 'provider ID' of this LDAP server
                 label: 'LDAP'
-                host: '192.168.10.200'
+                host: 'LDAP_HOST'
                 port: 389
                 uid: 'sAMAccountName'
-                bind_dn: 'administrator@phat.lab'
-                password: '0o9i8u7y)O(I*U&Y'
+                bind_dn: 'LDAP_BIND_DN'
+                password: 'LDAP_PASSWORD'
                 encryption: 'plain' # "start_tls" or "simple_tls" or "plain"
                 verify_certificates: true
                 smartcard_auth: false
@@ -72,7 +72,7 @@ spec:
                 allow_username_or_email_login: false
                 lowercase_usernames: true
                 block_auto_created_users: false
-                base: 'CN=Users,DC=phat,DC=lab'
+                base: 'LDAP_BASE'
                 user_filter: ''
               EOS
 
