@@ -1160,7 +1160,7 @@ gather_ldap_config() {
 
     # Prompt for host
     while true; do
-        read -p "Enter LDAP server host (e.g., 192.168.10.200): " host
+        read -e -p "Enter LDAP server host (e.g., 192.168.10.200): " -i "192.168.10.200" host
         # Basic IP validation
         if [[ $host =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
             break
@@ -1171,7 +1171,7 @@ gather_ldap_config() {
 
     # Prompt for bind_dn
     while true; do
-        read -p "Enter LDAP binding service account (e.g., administrator@localdomain.mil): " bind_dn
+        read -e -p "Enter LDAP binding service account (e.g., administrator@localdomain.mil): " -i "serviceaccount@domain.mil" bind_dn
         if [[ -n "$bind_dn" ]]; then
             break
         else
@@ -1181,7 +1181,7 @@ gather_ldap_config() {
 
     # Prompt for password
     while true; do
-        read -s -p "Enter LDAP password: " password
+        read -e -p "Enter LDAP service account password: " -i "changeme" password
         echo
         if [[ -n "$password" ]]; then
             break
@@ -1192,7 +1192,7 @@ gather_ldap_config() {
 
     # Prompt for base, prepopulated with example
     while true; do
-        read -e -p "Enter LDAP user OU base (e.g., CN=Users,DC=localdomain,DC=mil): " -i "CN=Users,DC=localdomain,DC=mil" base
+        read -e -p "Enter LDAP user OU base ( OU=Users,OU=OGS,DC=j114,DC=army,DC=mil): " -i "OU=Users,OU=OGS,DC=j114,DC=army,DC=mil" base
         if [[ -n "$base" ]]; then
             break
         else

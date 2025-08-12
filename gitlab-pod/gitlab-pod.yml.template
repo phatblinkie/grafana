@@ -54,6 +54,14 @@ spec:
             nginx['listen_https'] = true
             gitlab_rails['initial_root_password'] = 'GITLAB_ADMIN_PW'
             gitlab_rails['initial_root_email'] = 'GITLAB_ADMIN_USERNAME'
+
+            #container registry stuff
+            registry_external_url 'https://GITLAB_DOMAIN:5050'
+            #using https results in strange self signed errors
+            registry_enable = true
+            gitlab_rails['gitlab_default_projects_features_container_registry'] = true
+
+            #ldap stuff
             gitlab_rails['ldap_enabled'] = true
             gitlab_rails['ldap_servers'] = YAML.load <<-'EOS'
               main: # 'main' is the GitLab 'provider ID' of this LDAP server
@@ -73,6 +81,8 @@ spec:
                 lowercase_usernames: true
                 block_auto_created_users: false
                 base: 'LDAP_BASE'
+                #requires paid version
+                #admin_group: 'Workstation Admins'
                 user_filter: ''
               EOS
 
@@ -94,3 +104,6 @@ spec:
           hostPort: 8088
         - containerPort: 22
           hostPort: 2200
+        - containerPort: 5050
+          hostPort: 5050
+

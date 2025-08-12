@@ -42,7 +42,7 @@ spec:
           memory: "12560Mi"
       env:
         - name: GITLAB_ROOT_EMAIL
-          value: "phat@phat.com"
+          value: "admin@phat.lab"
         - name: GITLAB_ROOT_PASSWORD
           value: "0o9i8u7y)O(I*U&Y"
         - name: GITLAB_OMNIBUS_CONFIG
@@ -53,7 +53,11 @@ spec:
             gitlab_https = true
             nginx['listen_https'] = true
             gitlab_rails['initial_root_password'] = '0o9i8u7y)O(I*U&Y'
-            gitlab_rails['initial_root_email'] = 'phat@phat.com'
+            gitlab_rails['initial_root_email'] = 'admin@phat.lab'
+            registry_external_url 'https://gitlab.phat.lab:5050'
+            #using https resulst in strange self signed errors
+            registry_enable = true
+            gitlab_rails['gitlab_default_projects_features_container_registry'] = true
             gitlab_rails['ldap_enabled'] = true
             gitlab_rails['ldap_servers'] = YAML.load <<-'EOS'
               main: # 'main' is the GitLab 'provider ID' of this LDAP server
@@ -61,8 +65,8 @@ spec:
                 host: '192.168.10.200'
                 port: 389
                 uid: 'sAMAccountName'
-                bind_dn: 'administrator@phat.lab'
-                password: '0o9i8u7y)O(I*U&Y'
+                bind_dn: 'forward.sa@phat.lab'
+                password: 'default_PASSWORD_8675309'
                 encryption: 'plain' # "start_tls" or "simple_tls" or "plain"
                 verify_certificates: true
                 smartcard_auth: false
@@ -72,7 +76,8 @@ spec:
                 allow_username_or_email_login: false
                 lowercase_usernames: true
                 block_auto_created_users: false
-                base: 'CN=Users,DC=phat,DC=lab'
+                base: 'DC=phat,DC=lab'
+                  #admin_group: 'Administrators'
                 user_filter: ''
               EOS
 
@@ -94,3 +99,5 @@ spec:
           hostPort: 8088
         - containerPort: 22
           hostPort: 2200
+        - containerPort: 5050
+          hostPort: 5050
