@@ -737,6 +737,7 @@ configure_firewall() {
  ["Gitlab-ssl"]="9443/tcp"
  ["Gitlab-http"]="8088/tcp"
  ["Gitlab-ssh"]="2200/tcp"
+ ["Gitlab-registry"]="5050/tcp"
  )
 
  for service in "${!PORTS[@]}"; do
