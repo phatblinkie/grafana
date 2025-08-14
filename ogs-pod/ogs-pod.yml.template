@@ -108,6 +108,10 @@ spec:
         - name: GF_PATHS_PROVISIONING
           value: /etc/grafana/provisioning
 
+        - name: LDAP_BIND_PASSWORD
+          value: LDAP_BIND_PASSWORD_VALUE
+
+
       volumeMounts:
         - name: grafana-storage
           mountPath: /var/lib/grafana
@@ -135,6 +139,10 @@ spec:
         - name: configs
           mountPath: /etc/grafana/grafana.ini
           subPath: grafana.ini
+
+        - name: configs
+          mountPath: /etc/grafana/ldap.toml
+          subPath: grafana_ldap.toml
 
     - name: loki
       #image: registry1.dso.mil/ironbank/opensource/grafana/loki:LOKI_VERSION

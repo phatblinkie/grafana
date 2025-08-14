@@ -60,7 +60,7 @@ http {
     # Server block for grafana
     server {
         listen 443 ssl;
-        server_name grafana.phat.lab;
+        server_name grafana.DOMAIN;
 
         ssl_certificate /etc/pki/tls/ssl.crt;
         ssl_certificate_key /etc/pki/tls/ssl.key;
@@ -102,7 +102,7 @@ http {
     # Server block for gitlab
     server {
         listen 443 ssl;
-        server_name gitlab.phat.lab;
+        server_name gitlab.DOMAIN;
 
         ssl_certificate /etc/pki/tls/ssl.crt;
         ssl_certificate_key /etc/pki/tls/ssl.key;
@@ -141,7 +141,7 @@ http {
     # Server block for nifi
     server {
         listen 443 ssl;
-        server_name nifi.phat.lab;
+        server_name nifi.DOMAIN;
 
         ssl_certificate /etc/pki/tls/ssl.crt;
         ssl_certificate_key /etc/pki/tls/ssl.key;

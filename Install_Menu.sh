@@ -303,7 +303,10 @@ generate_ssl_keys() {
  echo "INFO: Please enter domain name (e.g. army.local):"
  read -r domain
  echo "INFO: You entered: $domain"
-
+ 
+ #used by nginx template
+ echo "DOMAIN=$domain" > /mission-share/podman/containers/keys/DOMAIN
+ 
  local temp_file=$(mktemp)
  echo "$msnsvr_ip $msnsvr_fqdn msnsvr grafana loki mimir nifi.$domain" > "$temp_file"
  echo "INFO: Updating /etc/hosts with msnsvr details"
@@ -365,25 +368,40 @@ generate_ssl_keys() {
  echo "INFO: Creating NGINX proxy certificates"
  printf "$msnsvr_ip\n\\$msnsvr_ip\n\nUS\nMaryland\nAPG\nFII\n3650\nsilkwave\n" | ./server-cert-gen.sh /mission-share/podman/containers/keys/nginx/
  if rename_ssl "$msnsvr_ip" "/mission-share/podman/containers/keys/nginx/"; then
- echo "INFO: Copying NGINX certificates to /etc/pki/tls"
- if run_with_sudo cp -v /mission-share/podman/containers/keys/nginx/ssl.* /etc/pki/tls/; then
- echo "SUCCESS: NGINX certificates copied to /etc/pki/tls"
+  echo "INFO: Copying NGINX certificates to /etc/pki/tls"
+  if run_with_sudo cp -v /mission-share/podman/containers/keys/nginx/ssl.* /etc/pki/tls/; then
+  echo "SUCCESS: NGINX certificates copied to /etc/pki/tls"
  else
- echo "ERROR: Failed to copy NGINX certificates to /etc/pki/tls" >&2
- return 1
+  echo "ERROR: Failed to copy NGINX certificates to /etc/pki/tls" >&2
+  return 1
  fi
+
+ # copy the dod ca
+ cd $OLDPWD
+  echo "INFO: Copying DOD CA  certificates to /etc/pki/ca-trust/extracted/pem"
+  if run_with_sudo cp -v DOD_certs/DOD_CAs.pem /etc/pki/ca-trust/extracted/pem/; then
+   echo "SUCCESS: DOD CA certificates copied to /etc/pki/ca-trust/extracted/pem/"
+  else
+   echo "ERROR: Failed to copy DOD CA certificates to /etc/pki/ca-trust/extracted/pem/" >&2
+   return 1
+  fi
+
  echo "INFO: Fixing SELinux context on NGINX keys"
  run_with_sudo semanage fcontext -a -t cert_t "/etc/pki/tls/ssl.crt"
  run_with_sudo semanage fcontext -a -t cert_t "/etc/pki/tls/ssl.key"
+ run_with_sudo semanage fcontext -a -t cert_t "/etc/pki/ca-trust/extracted/pem/DOD_CAs.pem"
  run_with_sudo restorecon -v -F "/etc/pki/tls/ssl.crt"
  run_with_sudo restorecon -v -F "/etc/pki/tls/ssl.key"
+ run_with_sudo restorecon -v -F "/etc/pki/ca-trust/extracted/pem/DOD_CAs.pem"
+ run_with_sudo chmod 0444 "/etc/pki/ca-trust/extracted/pem/DOD_CAs.pem"
+
  echo "SUCCESS: SELinux context fixed for NGINX keys"
  else
  echo "ERROR: Failed to create or rename NGINX certificates" >&2
  return 1
  fi
 
- cd "$OLDPWD"
+ #cd "$OLDPWD"
  echo "SUCCESS: SSL certificate generation completed"
 }
 
@@ -628,27 +646,53 @@ install_nginx() {
  echo "INFO: Installing and configuring Nginx"
 
  if ! command -v nginx &> /dev/null; then
- echo "INFO: Installing nginx"
- if run_with_sudo dnf install nginx -y; then
- echo "SUCCESS: Nginx installed"
+  echo "INFO: Installing nginx"
+  if run_with_sudo dnf install nginx -y; then
+   echo "SUCCESS: Nginx installed"
+  else
+   echo "ERROR: Failed to install nginx" >&2
+   return 1
+  fi
  else
- echo "ERROR: Failed to install nginx" >&2
- return 1
- fi
- else
- echo "INFO: Nginx is already installed"
+  echo "INFO: Nginx is already installed"
  fi
 
  config_source="configs/nginx.conf"
  config_dest="/etc/nginx/nginx.conf"
 
  if [ ! -f "$config_source" ]; then
- echo "ERROR: Source config file $config_source not found" >&2
- return 1
+  echo "ERROR: Source config file $config_source not found" >&2
+  return 1
  fi
+
+ #find out domain name, ask for it, or source it
+ if [ ! -f /mission-share/podman/containers/keys/DOMAIN ] ; then
+    echo "INFO: Please enter domain name (e.g. army.local):"
+    read -r domain
+    echo "INFO: You entered: $domain"
+
+    #used by nginx template
+    echo "DOMAIN=$domain" > /mission-share/podman/containers/keys/DOMAIN
+ else
+    . /mission-share/podman/containers/keys/DOMAIN
+ fi
+ 
+ #replace the DOMAIN in the nginx.conf template
+ echo "substituting domain value in nginx template file"
+    if cat configs/nginx.conf.template | \
+       sed "s|DOMAIN|$DOMAIN|" > configs/nginx.conf; then
+        echo "SUCCESS: Generated nginx.conf"
+    else
+        echo "ERROR: Failed to create nginx.conf file" >&2
+        return 1
+    fi
+ 
+
+ 
 
  echo "INFO: Copying Nginx configuration"
  if run_with_sudo cp -vf "$config_source" "$config_dest" && \
+ run_with_sudo chmod -v 0644 "/etc/nginx/nginx.conf" && \
  run_with_sudo mkdir -vp /usr/share/nginx/html/rpms && \
  run_with_sudo chmod -v 0755 /usr/share/nginx/html/rpms && \
  run_with_sudo cp -vf alloy_installers/alloy-1.7.5-1.amd64.rpm /usr/share/nginx/html/rpms/ && \

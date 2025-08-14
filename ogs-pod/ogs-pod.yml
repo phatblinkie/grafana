@@ -136,6 +136,10 @@ spec:
           mountPath: /etc/grafana/grafana.ini
           subPath: grafana.ini
 
+        - name: configs
+          mountPath: /etc/grafana/ldap.toml
+          subPath: grafana_ldap.toml
+
     - name: loki
       #image: registry1.dso.mil/ironbank/opensource/grafana/loki:3.5.1
       image: localhost/loki-custom:3.5.1
