@@ -150,16 +150,20 @@ collect_user_inputs() {
     DEFAULT_LISTEN_IP_ADDRESS="0.0.0.0"
     DEFAULT_LDAP_BIND_USER="forward.sa@$DEFAULT_OGS_DOMAIN_NAME"
     DEFAULT_LDAP_BIND_PASSWORD_VALUE="changeme"
+
     #gitlab
     DEFAULT_GITLAB_DOMAIN_FQDN="gitlab.$DEFAULT_OGS_DOMAIN_NAME"
-    DEFAULT_GITLAB_ADMIN_USERNAME="admin"
+    DEFAULT_GITLAB_ADMIN_USERNAME="root"
     #pw has to be at least 8 chars and semi complex. This script does not check this.
     DEFAULT_GITLAB_ADMIN_PW="changeme"
     DEFAULT_GITLAB_ADMIN_EMAIL="$DEFAULT_GITLAB_ADMIN_USERNAME@$DEFAULT_OGS_DOMAIN_NAME"
+    #for gitlab local login, use root or this admin email as username
+
     #grafana
     DEFAULT_GRAFANA_DOMAIN_FQDN="grafana.$DEFAULT_OGS_DOMAIN_NAME"
     DEFAULT_GRAFANA_ADMIN_USERNAME="admin"
     DEFAULT_GRAFANA_ADMIN_PW="changeme"
+
     #nifi
     DEFAULT_NIFI_DOMAIN_FQDN="nifi.$DEFAULT_OGS_DOMAIN_NAME"
     DEFAULT_NIFI_ADMIN_USERNAME="admin"
@@ -210,6 +214,7 @@ GITLAB_ADMIN_USERNAME='${GITLAB_ADMIN_USERNAME:-$DEFAULT_GITLAB_ADMIN_USERNAME}'
 #NOTE: pw has to be at least 8 chars and semi complex. This script does not check this.
 GITLAB_ADMIN_PW='${GITLAB_ADMIN_PW:-$DEFAULT_GITLAB_ADMIN_PW}'
 GITLAB_ADMIN_EMAIL='${GITLAB_ADMIN_EMAIL:-$DEFAULT_GITLAB_ADMIN_EMAIL}'
+#for gitlab local login, use root or this admin email as username
 
 #Grafana-specific - if ldap is down, local master admin account
 GRAFANA_DOMAIN_FQDN='${GRAFANA_DOMAIN_FQDN:-$DEFAULT_GRAFANA_DOMAIN_FQDN}'
@@ -275,6 +280,7 @@ EOF
         SUMMARY+="#NOTE: pw has to be at least 8 chars and semi complex. This script does not check this.\n"
         SUMMARY+="GITLAB_ADMIN_PW: $GITLAB_ADMIN_PW\n"
 	    SUMMARY+="GITLAB_ADMIN_EMAIL: $GITLAB_ADMIN_EMAIL\n"
+        SUMMARY+="#for gitlab local login, use root or this admin email as username\n"
 	    SUMMARY+="\n"
 	    SUMMARY+="Grafana-specific  - if ldap is down, local master admin account\n"
 	    SUMMARY+="GRAFANA_DOMAIN_FQDN: $GRAFANA_DOMAIN_FQDN\n"
@@ -319,6 +325,7 @@ GITLAB_ADMIN_USERNAME='$GITLAB_ADMIN_USERNAME'
 #NOTE: pw has to be at least 8 chars and semi complex. This script does not check this.
 GITLAB_ADMIN_PW='$GITLAB_ADMIN_PW'
 GITLAB_ADMIN_EMAIL='$GITLAB_ADMIN_EMAIL'
+#for gitlab local login, use root or this admin email as username
 
 #Grafana-specific  - if ldap is down, local master admin account
 GRAFANA_DOMAIN_FQDN='$GRAFANA_DOMAIN_FQDN'
