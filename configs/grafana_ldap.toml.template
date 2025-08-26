@@ -1,13 +1,13 @@
 [[servers]]
-host = "192.168.10.200"
+host = "LDAP_SERVER"
 port = 389
 use_ssl = false
 start_tls = true
 ssl_skip_verify = true
-bind_dn = "forward.sa@phat.lab"
+bind_dn = "LDAP_BIND_USER_VALUE"
 bind_password = '$__env{LDAP_BIND_PASSWORD}'
 search_filter = "(|(sAMAccountName=%s)(userPrincipalName=%s))"
-search_base_dns = ["OU=Users,OU=ogs,DC=phat,DC=lab"]
+search_base_dns = ["LDAP_SEARCH_BASE"]
 
 [servers.attributes]
 member_of = "memberOf"
