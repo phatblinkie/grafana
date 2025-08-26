@@ -111,6 +111,13 @@ spec:
         - name: LDAP_BIND_PASSWORD
           value: LDAP_BIND_PASSWD_VALUE
 
+        - name: GF_SECURITY_ADMIN_USER
+          value: GRAFANA_ADMIN_USERNAME
+
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          value: GRAFANA_ADMIN_PW
+
+
 
       volumeMounts:
         - name: grafana-storage

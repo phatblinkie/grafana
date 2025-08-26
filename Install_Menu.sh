@@ -146,7 +146,7 @@ collect_user_inputs() {
     # NOTE! use the ip, not the dns name for the ldap server,
     # some containers run into issues resolving dns
     DEFAULT_LDAP_SERVER="192.168.10.200"
-    DEFAULT_LDAP_SEARCH_BASE="OU=Users,OU=ogs,DC=army,DC=mil"
+    DEFAULT_LDAP_SEARCH_BASE="OU=Users,OU=ogs,OU=j114,DC=army,DC=mil"
     DEFAULT_LISTEN_IP_ADDRESS="0.0.0.0"
     DEFAULT_LDAP_BIND_USER="forward.sa@$DEFAULT_OGS_DOMAIN_NAME"
     DEFAULT_LDAP_BIND_PASSWORD_VALUE="changeme"
@@ -1813,6 +1813,8 @@ build_and_start_pod() {
        sed "s|MIMIR_VERSION|$MIMIR_VERSION|g" | \
        sed "s|GITLAB_VERSION|$GITLAB_VERSION|g" | \
        sed "s|LDAP_BIND_PASSWD_VALUE|$LDAP_BIND_PASSWORD_VALUE|g" | \
+       sed "s|GRAFANA_ADMIN_USERNAME|$GRAFANA_ADMIN_USERNAME|g" | \
+       sed "s|GRAFANA_ADMIN_PW|$GRAFANA_ADMIN_PW|g" | \
        sed "s|--UID--|$UID|g" | \
        sed "s|--GID--|$UID|g" > ogs-pod.yml; then
         echo "SUCCESS: Generated OGS pod YAML"
