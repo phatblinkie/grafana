@@ -750,6 +750,24 @@ fi
     return 1
  fi
 
+#in order for podman image imports to work without the box halting, relax the auditd a little
+echo "INFO: fixing auditd to be leanient on podman"
+run_with_sudo cp configs/99-podman-load.rules /etc/audit/rules.d/
+echo "INFO: regenerating rules"
+run_with_sudo augenrules
+#this system has duplicated rules, which prevents it from loading, so be nice and filter them out of the final results
+#too bad augenrules does do this
+echo "INFO: backing up rules, and removing duplicate rules"
+run_with_sudo awk '!seen[$0]++' /etc/audit/audit.rules > audit.rules.fixed
+run_with_sudo cp -f /etc/audit/audit.rules audit.rules.orig
+run_with_sudo cp -f audit.rules.fixed /etc/audit/audit.rules
+#now load the rules, which should not log podman stuff, and not have duplicates
+echo "INFO: loading new ruleset"
+run_with_sudo augenrules --load
+#check for rule insertion
+
+
+
  echo "SUCCESS: System settings configured"
 }
 
