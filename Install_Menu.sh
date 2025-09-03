@@ -146,7 +146,7 @@ collect_user_inputs() {
     # NOTE! use the ip, not the dns name for the ldap server,
     # some containers run into issues resolving dns
     DEFAULT_LDAP_SERVER="192.168.10.200"
-    DEFAULT_LDAP_SEARCH_BASE="OU=Users,OU=ogs,OU=j114,DC=army,DC=mil"
+    DEFAULT_LDAP_SEARCH_BASE="OU=Users,OU=ogs,DC=j114,DC=army,DC=mil"
     DEFAULT_LISTEN_IP_ADDRESS="0.0.0.0"
     DEFAULT_LDAP_BIND_USER="forward.sa@$DEFAULT_OGS_DOMAIN_NAME"
     DEFAULT_LDAP_BIND_PASSWORD_VALUE="changeme"
@@ -342,14 +342,14 @@ EOF
 
         # Export variables without modification
         export OGS_DOMAIN_NAME
- 	    export LDAP_SERVER
+        export LDAP_SERVER
         export LDAP_SEARCH_BASE
-	    export LISTEN_IP_ADDRESS
+        export LISTEN_IP_ADDRESS
         export LDAP_BIND_USER_VALUE
         export LDAP_BIND_PASSWORD_VALUE
-	    #gitlab stuff
+        #gitlab stuff
         export GITLAB_DOMAIN_FQDN
-	    export GITLAB_ADMIN_USERNAME
+        export GITLAB_ADMIN_USERNAME
         export GITLAB_ADMIN_PW
         export GITLAB_ADMIN_EMAIL
         #grafana stuff
@@ -2053,7 +2053,42 @@ stop_and_delete_pod() {
     fi
 
     echo "SUCCESS: Pod '$podname' deleted successfully"
+
+    echo
+    echo
+    read -p "INFO: Confirm you wish to delete the data from pod: $podname (yes/no) " confirm
+    if [[ "$confirm" =~ [yY]|[yY][eE][sS] ]]; then
+        echo "INFO: Removing Container files for pod named: $podname"
+        if [ "$podname" == "ogs" ]; then
+            deletepath="/mission-share/podman/containers/ogs-pod.yml
+            /mission-share/podman/containers/grafana
+            /mission-share/podman/containers/loki
+            /mission-share/podman/containers/mimir
+            /mission-share/podman/containers/nifi"
+        elif [ "$podname" == "gitlab" ]; then
+            deletepath="/mission-share/podman/containers/gitlab-pod.yml
+            /mission-share/podman/containers/gitlab"
+        fi
+        #run the delete commands with deletepath variable data
+        echo "Standby, this could take a minute"
+        #if run_with_sudo rm -rf "$deletepath"; then
+        for i in `echo -e $deletepath`; do
+            if run_with_sudo rm -rf "$i"; then
+                echo "SUCCESS: Removed files on path $deletepath"
+            else
+                echo "ERROR: Failed to Remove files on path $deletepath" >&2
+                return 1
+            fi
+        done
+
+    else
+        echo -e "\nSkipping file deletion sequence\n"
+    fi
     return 0
+}
+
+delete_pod_container_data() {
+    local podname="$1"
 }
 
 cleanup_pod_services() {
@@ -2195,14 +2230,14 @@ check_vars_file() {
             echo "Warning: Failed to source $VARS_FILE. Check permissions on the file variables.conf"
         fi
         export OGS_DOMAIN_NAME
- 	    export LDAP_SERVER
+        export LDAP_SERVER
         export LDAP_SEARCH_BASE
-	    export LISTEN_IP_ADDRESS
+        export LISTEN_IP_ADDRESS
         export LDAP_BIND_USER_VALUE
         export LDAP_BIND_PASSWORD_VALUE
-	    #gitlab stuff
+        #gitlab stuff
         export GITLAB_DOMAIN_FQDN
-	    export GITLAB_ADMIN_USERNAME
+        export GITLAB_ADMIN_USERNAME
         export GITLAB_ADMIN_PW
         export GITLAB_ADMIN_EMAIL
         #grafana stuff
