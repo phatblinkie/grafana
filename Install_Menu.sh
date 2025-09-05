@@ -1094,6 +1094,74 @@ configure_firewall() {
  echo "SUCCESS: Firewall configuration completed"
 }
 
+empty_firewall_rules() {
+ echo "INFO: Removing firewall rules"
+
+ if ! command -v firewall-cmd &> /dev/null; then
+ echo "WARNING: firewalld is not installed. Skipping firewall configuration"
+ return 0
+ fi
+
+ if ! systemctl is-active --quiet firewalld; then
+ echo "INFO: Starting firewalld"
+ if run_with_sudo systemctl start firewalld; then
+ echo "SUCCESS: Firewalld started"
+ else
+ echo "ERROR: Failed to start firewalld" >&2
+ return 1
+ fi
+ fi
+
+ declare -A PORTS=(
+ ["HTTP"]="80/tcp"
+ ["HTTPs"]="443/tcp"
+ ["Grafana"]="3000/tcp"
+ ["Loki"]="3100/tcp"
+ ["Mimir"]="9009/tcp"
+ ["Nifi-ssl"]="8443/tcp"
+ ["Nifi-3200"]="3200/tcp"
+ ["Nifi-9092"]="9092/tcp"
+ ["Gitlab-ssl"]="9443/tcp"
+ ["Gitlab-http"]="8088/tcp"
+ ["Gitlab-ssh"]="2200/tcp"
+ ["Gitlab-registry"]="5050/tcp"
+ )
+
+ for service in "${!PORTS[@]}"; do
+ port=${PORTS[$service]}
+ if run_with_sudo firewall-cmd --query-port="$port" | grep -q "yes"; then
+    echo "INFO: Removing port $port for $service"
+    if run_with_sudo firewall-cmd --permanent --remove-port="$port"; then
+        echo "SUCCESS: Port $port close for $service"
+    else
+        echo "ERROR: Failed to close port $port for $service" >&2
+        return 1
+    fi
+ else
+    echo "INFO: Port $port for $service was not already configured"
+ fi
+ done
+
+ echo "INFO: Adding NFS service"
+ if run_with_sudo firewall-cmd --permanent --remove-service="nfs"; then
+ echo "SUCCESS: NFS service removed from firewall"
+ else
+ echo "ERROR: Failed to remove NFS service to firewall" >&2
+ return 1
+ fi
+
+ echo "INFO: Reloading firewalld"
+ if run_with_sudo firewall-cmd --reload; then
+ echo "SUCCESS: Firewalld reloaded"
+ else
+ echo "ERROR: Failed to reload firewalld" >&2
+ return 1
+ fi
+
+ echo "SUCCESS: Firewall rule removal process completed"
+}
+
+
 pull_container_images() {
  echo "INFO: Pulling container images"
 
@@ -2388,13 +2456,46 @@ show_menu() {
     echo "===================== Un-Install Options ==============================="
     echo " u1) Stop and Delete OGS (glam) pod"
     echo " u2) Stop and Delete GITLAB pod"
-    echo " u3) Completely clear out all PODS, containers, keys, files and images on /mission-share"
+    echo " u3) Runs u1, u2, and completely clear out all PODS, containers, keys, files and images on /mission-share"
     echo "      -- takes /mission-share back to empty state"
-    echo " u4) Remove secondary disk from fstab and unmount"
     echo " u4) Clear out NFS server exports file"
-    echo " u5) Remove Firewall rules"
-    echo " NUKE-IT) Removes all data, basically all the options above in one step"
+    echo " u5) Remove Customized Firewall rules"
 }
+
+
+umount_disk() {
+    #only unmount the /mission-share
+    if [ grep -c mission-share /etc/mtab -eq 0 ]; then
+        echo "/mission-share is not mounted"
+        return 0
+    fi
+    if run_with_sudo umount /mission-share; then
+        echo "SUCCESS: /mission-share unmounted"
+        return 0
+    else
+        echo "ERROR: Failed to unmount /mission-share"
+        return 1
+    fi
+}
+
+remove_disk_from_fstab() {
+    echo "INFO: making backup of fstab to /tmp/fstab.backup"
+    cp -f /etc/fstab /tmp/fstab.backup
+    if run_with_sudo sed -i '/\/mission-share/d' /etc/fstab; then
+        echo "SUCCESS: fstab modified, reloading systemctl"
+        run_with_sudo systemctl daemon-reload
+        return 0
+    else
+        echo "ERROR: unable to modify /etc/fstab file"
+        return 1
+    fi
+}
+
+destroy_disk_filesytem() {
+
+echo "not used"
+}
+
 
 # ---------- Main Execution ----------
 
@@ -2476,6 +2577,7 @@ while true; do
             podman system reset -f >/dev/null 2>&1
             ;;
         u4) empty_nfs_exports ;;
+        u5) empty_firewall_rules ;;
         q)
             echo "INFO: Exiting. Have a nice day!"
             exit 0
