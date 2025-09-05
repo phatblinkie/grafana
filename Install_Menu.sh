@@ -2087,8 +2087,107 @@ stop_and_delete_pod() {
     return 0
 }
 
-delete_pod_container_data() {
+stop_and_delete_pod_auto() {
     local podname="$1"
+
+    # Sanity check: Ensure podname is not empty
+    if [[ -z "$podname" ]]; then
+        echo "ERROR: No pod name provided to stop_and_delete_pod" >&2
+        return 1
+    fi
+
+    echo "INFO: Beginning stop and delete process for pod '$podname'"
+
+    # Check if the pod-$podname service exists
+    echo "INFO: Checking if 'pod-$podname' service exists"
+    if ! systemctl --user list-units --type=service --all | grep -q "pod-$podname"; then
+        echo "INFO: 'pod-$podname' service does not exist, proceeding to podman operations"
+    else
+        # Check if the pod-$podname service is active
+        echo "INFO: Checking if 'pod-$podname' service is active"
+        if systemctl --user is-active --quiet "pod-$podname"; then
+            echo "INFO: 'pod-$podname' service is active, stopping with 'systemctl --user stop pod-$podname'"
+            if ! systemctl --user stop "pod-$podname"; then
+                echo "ERROR: Failed to stop 'pod-$podname' service" >&2
+                return 1
+            fi
+            echo "SUCCESS: 'pod-$podname' service stopped successfully"
+        else
+            echo "INFO: 'pod-$podname' service is not active"
+        fi
+
+        # Disable the pod-$podname service
+        echo "INFO: Disabling 'pod-$podname' service with 'systemctl --user disable pod-$podname'"
+        if ! systemctl --user disable "pod-$podname" &>/dev/null; then
+            echo "ERROR: Failed to disable 'pod-$podname' service" >&2
+            return 1
+        fi
+        echo "SUCCESS: 'pod-$podname' service disabled successfully"
+    fi
+
+    # Stop the pod
+    if ! stop_pod_named "$podname"; then
+        echo "ERROR: Failed to stop pod '$podname'" >&2
+        return 1
+    fi
+
+    # Delete the pod
+    echo "INFO: Deleting pod '$podname' with 'podman pod rm --force $podname'"
+    if ! podman pod rm --force "$podname" &>/dev/null; then
+        echo "ERROR: Failed to delete pod '$podname'" >&2
+        return 1
+    fi
+
+    echo "SUCCESS: Pod '$podname' deleted successfully"
+
+    echo
+    echo
+    #read -p "INFO: Confirm you wish to delete the data from pod: $podname (yes/no) " confirm
+    confirm="yes"
+    if [[ "$confirm" =~ [yY]|[yY][eE][sS] ]]; then
+        echo "INFO: Removing Container files for pod named: $podname"
+        if [ "$podname" == "ogs" ]; then
+            deletepath="/mission-share/podman/containers/ogs-pod.yml
+            /mission-share/podman/containers/grafana
+            /mission-share/podman/containers/loki
+            /mission-share/podman/containers/mimir
+            /mission-share/podman/containers/nifi"
+        elif [ "$podname" == "gitlab" ]; then
+            deletepath="/mission-share/podman/containers/gitlab-pod.yml
+            /mission-share/podman/containers/gitlab"
+        fi
+        #run the delete commands with deletepath variable data
+        echo "Standby, this could take a minute"
+        #if run_with_sudo rm -rf "$deletepath"; then
+        for i in `echo -e $deletepath`; do
+            if run_with_sudo rm -rf "$i"; then
+                echo "SUCCESS: Removed files on path $deletepath"
+            else
+                echo "ERROR: Failed to Remove files on path $deletepath" >&2
+                return 1
+            fi
+        done
+
+    else
+        echo -e "\nSkipping file deletion sequence\n"
+    fi
+    return 0
+}
+
+reset_podman() {
+    echo "INFO: performing podman system reset to clear locked file handles"
+    if podman system reset -f; then
+        echo "SUCCESS: podman reset successful"
+        return 0
+    else
+        echo "ERROR: podman reset failed- run 'podman system reset' -f manually"
+        return 1
+    fi
+}
+
+delete_all_mission-share_data() {
+    run_with_sudo rm -rf "/mission-share"
+    return 0
 }
 
 cleanup_pod_services() {
@@ -2289,14 +2388,11 @@ show_menu() {
     echo "===================== Un-Install Options ==============================="
     echo " u1) Stop and Delete OGS (glam) pod"
     echo " u2) Stop and Delete GITLAB pod"
-    echo " u3c) Clear out all container data files on /mission-share"
-    echo "      -- This will leave the images only"
-    echo " u3a) Completely clear out all files and images on /mission-share"
+    echo " u3) Completely clear out all PODS, containers, keys, files and images on /mission-share"
+    echo "      -- takes /mission-share back to empty state"
     echo " u4) Remove secondary disk from fstab and unmount"
     echo " u4) Clear out NFS server exports file"
     echo " u5) Remove Firewall rules"
-    echo " u6) podman system reset - removes all podman images, volumes, containers"
-    echo "     -- This does not delete container files in /mission share"
     echo " NUKE-IT) Removes all data, basically all the options above in one step"
 }
 
@@ -2350,8 +2446,36 @@ while true; do
                 echo "ERROR: Failed to clean up services for pod 'gitlab'" >&2
             fi
             ;;
+        u3)
+            if podman pod exists gitlab; then
+                echo "Removing pod 'gitlab'"
+                stop_and_delete_pod_auto "gitlab"
+                if cleanup_pod_services "gitlab"; then
+                    echo "SUCCESS: Cleaned up services for pod 'gitlab'"
+                else
+                    echo "ERROR: Failed to clean up services for pod 'gitlab'" >&2
+                fi
+            else
+                echo "pod gitlab not found, skipping" >&2
+            fi
+            if podman pod exists ogs; then
+                echo "Removing pod 'ogs'"
+                stop_and_delete_pod_auto "ogs"
+                if cleanup_pod_services "ogs"; then
+                    echo "SUCCESS: Cleaned up services for pod 'ogs'"
+                else
+                    echo "ERROR: Failed to clean up services for pod 'ogs'" >&2
+                fi
+            else
+                echo "pod ogs not found, skipping" >&2
+            fi
+            reset_podman
+            echo "INFO: Removing all files under /mission"
+            delete_all_mission-share_data
+            #run podman reset again, to rebuild silently the needed file structure for container images
+            podman system reset -f >/dev/null 2>&1
+            ;;
         u4) empty_nfs_exports ;;
-        u2d) stop_and_delete_pod "gitlab" ;;
         q)
             echo "INFO: Exiting. Have a nice day!"
             exit 0
