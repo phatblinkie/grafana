@@ -49,7 +49,7 @@ spec:
           value: |
             external_url 'https://gitlab.phat.lab:9443'
             nginx['listen_port'] = 443
-            nginx['listen_address'] = ['0.0.0.0']
+            nginx['listen_address'] = ['192.168.10.211']
             gitlab_https = true
             nginx['listen_https'] = true
             gitlab_rails['initial_root_password'] = '0o9i8u7y)O(I*U&Y'
