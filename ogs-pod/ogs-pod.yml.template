@@ -188,39 +188,30 @@ spec:
       #image: localhost/nifi-custom:2.4.0-fips-bc
       #above image fails to start, likely needs updated configuration files to work. below is original image.
       image: docker.io/apache/nifi:tsb_py
-#      securityContext:
-#        runAsUser: --UID--
-#        runAsGroup: --GID--
       env:
         - name: NIFI_WEB_PROXY_HOST
           value: "nifi.army.local:8443"
+
         - name: NIFI_PROPERTIES_FILE
           value: "/tmp/nifi.properties"
+
       volumeMounts:
         - name: shared-storage
           mountPath: /shared-storage
 
-        #- name: nifi-current
-        #  mountPath: /opt/nifi/nifi-current
-
         - name: configs
-          mountPath: /tmp/configs/nifi.properties
+          mountPath: /tmp/nifi.properties
           subPath: nifi.properties
+
         - name: nifi-logs
           mountPath: /opt/nifi/nifi-current/logs
-        #- name: nifi-logs
-        #  mountPath: /opt/nifi/nifi-current/logs/nifi-app.log
-        #  subPath: nifi-app.log
+
         - name: nifi-conf
           mountPath: /opt/nifi/nifi-current/conf
-        #commented in original docker-compose
-        #- name: nifi-lib
-        #  mountPath: /opt/nifi/nifi-current/lib
-        #- name: nifi-lib
-        #  mountPath: /opt/nifi/nifi-current/lib/tide-nifi-plugin-nar-1.6.0.nar
-        #  subPath: tide-nifi-plugin-nar-1.6.0.nar
+
         - name: nifi-tide
           mountPath: /mission-share/tide
+
         - name: nifi-tools
           mountPath: /mission-share/tools
       ports:
