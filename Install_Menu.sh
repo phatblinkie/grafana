@@ -1467,7 +1467,15 @@ copy_source_directories() {
         echo "ERROR: Failed to copy vast-ca or tools" >&2
         return 1
     fi
-
+	
+    echo "INFO: Copying zfts to new location"
+    if podman unshare rsync -ah zfts $rootpath/ ; then
+        echo "SUCCESS: Copied zfts"
+    else
+        echo "ERROR: Failed to copy zfts" >&2
+        return 1
+    fi
+	
     echo "INFO: Setting permissions on tide directories"
     if podman unshare chmod -R 777 $rootpath/tide; then
         echo "SUCCESS: Permissions set on tide directories"
