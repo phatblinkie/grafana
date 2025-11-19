@@ -1293,15 +1293,14 @@ copy_source_directories() {
     fi
 
 
-# follow up, this may not be needed anymore    
-#    echo "INFO: Setting permissions on Gitlab directories"
-#    if run_with_sudo chmod 0777 /mission-share/podman/containers/gitlab && \
-#       run_with_sudo chmod 0777 /mission-share/podman/containers/gitlab/{logs,config,data}; then
-#        echo "SUCCESS: Gitlab directory permissions set"
-#    else
-#        echo "ERROR: Failed to set Gitlab directory permissions" >&2
-#        return 1
-#    fi
+ follow up, this may not be needed anymore    
+    echo "INFO: Setting permissions on Gitlab directories"
+    if run_with_sudo chmod 0777 /mission-share/podman/containers/gitlab /mission-share/podman/containers/gitlab/{logs,config,data} /mission-share/podman/containers/mimir; then
+        echo "SUCCESS: Gitlab directory permissions set"
+    else
+        echo "ERROR: Failed to set Gitlab directory permissions" >&2
+        return 1
+    fi
 
     echo "SUCCESS: Source directory copying completed"
 }
