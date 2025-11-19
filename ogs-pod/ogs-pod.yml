@@ -40,73 +40,22 @@ spec:
         path: /mission-share/podman/containers/keys/grafana
         type: DirectoryOrCreate
 
-    #mimir
-    #loki
-
-    #nifi
-    - name: nifi-current
-      hostPath:
-        path: /mission-share/podman/containers/nifi/nifi-current
-        type: DirectoryOrCreate
-    - name: nifi-lib
-      hostPath:
-        path: /mission-share/podman/containers/nifi/lib
-        type: DirectoryOrCreate
-    - name: nifi-logs
-      hostPath:
-        path: /mission-share/podman/containers/nifi/logs
-        type: DirectoryOrCreate
-    #- name: nifi-logfile
-    #  hostPath:
-    #    path: /mission-share/podman/containers/nifi/logs/nifi-app.log
-    #    type: FileOrCreate
-    - name: nifi-conf
-      hostPath:
-        path: /mission-share/podman/containers/nifi/conf
-        type: DirectoryOrCreate
-    - name: nifi-tide
-      hostPath:
-        path: /mission-share/tide
-        type: DirectoryOrCreate
-    - name: nifi-tools
-      hostPath:
-        path: /mission-share/tools
-        type: DirectoryOrCreate
-
   containers:
     - name: grafana
       #image: registry1.dso.mil/ironbank/opensource/grafana/grafana:12.0.1
       image: localhost/grafana-oss-custom:12.0.1
       securityContext:
-        runAsUser: 1001
-        runAsGroup: 1001
+        runAsUser: 1000
+        runAsGroup: 1000
       ports:
         - containerPort: 3000
           hostPort: 3000
       env:
-#        - name: GF_SERVER_PROTOCOL
-#          value: "https"
-
-#        - name: GF_SERVER_CERT_FILE
-#          value: "/etc/grafana/keys/ssl.crt"
-
-#        - name: GF_SERVER_CERT_KEY
-#          value: "/etc/grafana/keys/ssl.key"
-
         - name: GF_PATHS_CONFIG
           value: "/etc/grafana/grafana.ini"
 
-#        - name: GF_LOG_LEVEL
-#          value: "debug"
-
         - name: GF_AUTH_ANONYMOUS_ENABLED
           value: "true"
-
-#        - name: GF_PATHS_DATA
-#          value: /var/lib/grafana  # Grafana's default data directory (mounted to host)
-
-#        - name: GF_PATHS_PROVISIONING
-#          value: /etc/grafana/provisioning
 
         - name: LDAP_BIND_PASSWORD
           value: default_PASSWORD_8675309
@@ -115,7 +64,7 @@ spec:
           value: admin
 
         - name: GF_SECURITY_ADMIN_PASSWORD
-          value: admin
+          value: default_PASSWORD_8675309
 
 
 
@@ -155,8 +104,8 @@ spec:
       #image: registry1.dso.mil/ironbank/opensource/grafana/loki:3.5.1
       image: localhost/loki-custom:3.5.1
       securityContext:
-        runAsUser: 1001
-        runAsGroup: 1001
+        runAsUser: 1000
+        runAsGroup: 1000
       ports:
         - containerPort: 3100
           hostPort: 3100
@@ -171,9 +120,6 @@ spec:
     - name: mimir
       #image: registry1.dso.mil/ironbank/opensource/grafana/mimir:2.16.0
       image: localhost/mimir-custom:2.16.0
-#      securityContext:
-#        runAsUser: 1001
-#        runAsGroup: 1001
       ports:
         - containerPort: 9009
           hostPort: 9009
@@ -182,51 +128,3 @@ spec:
       volumeMounts:
         - name: shared-storage
           mountPath: /shared-storage
-
-    - name: nifi
-      #image: registry1.dso.mil/ironbank/opensource/apache/nifi:2.4.0-fips-bc
-      #image: localhost/nifi-custom:2.4.0-fips-bc
-      #above image fails to start, likely needs updated configuration files to work. below is original image.
-      image: docker.io/apache/nifi:tsb_py
-#      securityContext:
-#        runAsUser: 1001
-#        runAsGroup: 1001
-      env:
-        - name: NIFI_WEB_PROXY_HOST
-          value: "nifi.army.local:8443"
-        - name: NIFI_PROPERTIES_FILE
-          value: "/tmp/nifi.properties"
-      volumeMounts:
-        - name: shared-storage
-          mountPath: /shared-storage
-
-        #- name: nifi-current
-        #  mountPath: /opt/nifi/nifi-current
-
-        - name: configs
-          mountPath: /tmp/configs/nifi.properties
-          subPath: nifi.properties
-        - name: nifi-logs
-          mountPath: /opt/nifi/nifi-current/logs
-        #- name: nifi-logs
-        #  mountPath: /opt/nifi/nifi-current/logs/nifi-app.log
-        #  subPath: nifi-app.log
-        - name: nifi-conf
-          mountPath: /opt/nifi/nifi-current/conf
-        #commented in original docker-compose
-        #- name: nifi-lib
-        #  mountPath: /opt/nifi/nifi-current/lib
-        #- name: nifi-lib
-        #  mountPath: /opt/nifi/nifi-current/lib/tide-nifi-plugin-nar-1.6.0.nar
-        #  subPath: tide-nifi-plugin-nar-1.6.0.nar
-        - name: nifi-tide
-          mountPath: /mission-share/tide
-        - name: nifi-tools
-          mountPath: /mission-share/tools
-      ports:
-        - containerPort: 8443
-          hostPort: 8443
-        - containerPort: 8080
-          hostPort: 3200
-        - containerPort: 9092
-          hostPort: 9092

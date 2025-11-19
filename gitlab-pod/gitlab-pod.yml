@@ -33,7 +33,7 @@ spec:
   containers:
     - name: gitlab
       image: localhost/gitlab-ce-custom:17.11.6-ce.0
-      hostname: gitlab.phat.lab
+      hostname: gitlab.j114.army.mil
       securityContext:
         runAsUser: 0
         runAsGroup: 0
@@ -42,21 +42,21 @@ spec:
           memory: "12560Mi"
       env:
         - name: GITLAB_ROOT_EMAIL
-          value: "admin@phat.lab"
+          value: "root@j114.army.mil"
         - name: GITLAB_ROOT_PASSWORD
-          value: "0o9i8u7y)O(I*U&Y"
+          value: "default_PASSWORD_8675309"
         - name: GITLAB_OMNIBUS_CONFIG
           value: |
-            external_url 'https://gitlab.phat.lab:9443'
+            external_url 'https://gitlab.j114.army.mil:9443'
             nginx['listen_port'] = 443
-            nginx['listen_address'] = ['192.168.10.211']
+            nginx['listen_address'] = ['0.0.0.0']
             gitlab_https = true
             nginx['listen_https'] = true
-            gitlab_rails['initial_root_password'] = '0o9i8u7y)O(I*U&Y'
-            gitlab_rails['initial_root_email'] = 'admin@phat.lab'
+            gitlab_rails['initial_root_password'] = 'default_PASSWORD_8675309'
+            gitlab_rails['initial_root_email'] = 'root@j114.army.mil'
             letsencrypt['enable'] = false
             #container registry stuff
-            registry_external_url 'https://gitlab.phat.lab:5050'
+            registry_external_url 'https://gitlab.j114.army.mil:5050'
             #using https results in strange self signed errors
             registry_enable = true
             gitlab_rails['gitlab_default_projects_features_container_registry'] = true
@@ -69,7 +69,7 @@ spec:
                 host: '192.168.10.200'
                 port: 389
                 uid: 'sAMAccountName'
-                bind_dn: 'forward.sa@phat.lab'
+                bind_dn: 'forward.sa@j114.army.mil'
                 password: 'default_PASSWORD_8675309'
                 encryption: 'plain' # "start_tls" or "simple_tls" or "plain"
                 verify_certificates: true
@@ -80,7 +80,7 @@ spec:
                 allow_username_or_email_login: false
                 lowercase_usernames: true
                 block_auto_created_users: false
-                base: 'OU=Users,OU=ogs,DC=phat,DC=lab'
+                base: 'OU=Users,OU=ogs,DC=j114,DC=army,DC=mil'
                 #requires paid version
                 #admin_group: 'Workstation Admins'
                 user_filter: ''

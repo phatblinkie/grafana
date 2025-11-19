@@ -409,9 +409,42 @@ generate_ssl_keys_gitlab() {
 
  gitlab_fqdn=$GITLAB_DOMAIN_FQDN
 
- msnsvr_ip=$LISTEN_IP_ADDRESS
-
+ #msnsvr_ip=$LISTEN_IP_ADDRESS
+ msnsvr_ip=$(get_default_ip)
  # Creating Gitlab Certs
+
+ domain=$OGS_DOMAIN_NAME
+ #used by nginx template
+ echo "DOMAIN=$domain" > /mission-share/podman/containers/keys/DOMAIN
+
+ local temp_file=$(mktemp)
+ mkdir -p /mission-share/.tmp 2>/dev/null
+ echo "$msnsvr_ip $gitlab_fqdn addedbyscript1" > "$temp_file"
+ echo "INFO: Updating /etc/hosts with msnsvr details"
+  #only inject if its not there, otherwise remove it first, then inject so its not duplicated
+ if [ `grep -c addedbyscript /etc/hosts` -gt 0 ]
+ then
+   #remove old entry
+   echo "$SUDO_PASSWORD" | sudo -S sh -c "sed -i '/addedbyscript1/d' /etc/hosts" 2>/dev/null
+   #update with new entry
+   if echo "$SUDO_PASSWORD" | sudo -S sh -c "cat '$temp_file' >> /etc/hosts" 2>/dev/null; then
+    echo "SUCCESS: Updated /etc/hosts"
+   else
+    echo "ERROR: Failed to update /etc/hosts" >&2
+    rm -f "$temp_file"
+    return 1
+   fi
+ else
+   if echo "$SUDO_PASSWORD" | sudo -S sh -c "cat '$temp_file' >> /etc/hosts" 2>/dev/null; then
+    echo "SUCCESS: Updated /etc/hosts"
+   else
+    echo "ERROR: Failed to update /etc/hosts" >&2
+    rm -f "$temp_file"
+    return 1
+   fi
+ fi
+ rm -f "$temp_file"
+
  echo -e "\n\nINFO: Creating Gitlab certificates"
  printf "$gitlab_fqdn\n\nUS\nMaryland\nAPG\nFII\n3650\nsilkwave\n" | ./server-cert-gen.sh /mission-share/podman/containers/keys/gitlab/
  echo "GITLAB_DOMAIN=$gitlab_fqdn" > /mission-share/podman/containers/keys/gitlab/GITLAB_DOMAIN
@@ -435,23 +468,39 @@ generate_ssl_keys() {
  cd /mission-share/vast-ca/
  echo "INFO: Creating SSL certificates"
 
- msnsvr_ip=$LISTEN_IP_ADDRESS
-
- msnsvr_fqdn=$NIFI_DOMAIN_FQDN
+ #msnsvr_ip=$LISTEN_IP_ADDRESS
+ msnsvr_ip=$(get_default_ip)
+ msnsvr_fqdn=$GRAFANA_DOMAIN_FQDN
 
  domain=$OGS_DOMAIN_NAME
  #used by nginx template
  echo "DOMAIN=$domain" > /mission-share/podman/containers/keys/DOMAIN
 
  local temp_file=$(mktemp)
- echo "$msnsvr_ip $msnsvr_fqdn msnsvr grafana loki mimir nifi.$domain" > "$temp_file"
+ mkdir -p /mission-share/.tmp 2>/dev/null
+ echo "$msnsvr_ip $msnsvr_fqdn grafana loki mimir addedbyscript" > "$temp_file"
  echo "INFO: Updating /etc/hosts with msnsvr details"
- if echo "$SUDO_PASSWORD" | sudo -S sh -c "cat '$temp_file' >> /etc/hosts" 2>/dev/null; then
-  echo "SUCCESS: Updated /etc/hosts"
+  #only inject if its not there, otherwise remove it first, then inject so its not duplicated
+ if [ `grep -c addedbyscript /etc/hosts` -gt 0 ]
+ then
+   #remove old entry
+   echo "$SUDO_PASSWORD" | sudo -S sh -c "sed -i '/addedbyscript/d' /etc/hosts" 2>/dev/null
+   #update with new entry
+   if echo "$SUDO_PASSWORD" | sudo -S sh -c "cat '$temp_file' >> /etc/hosts" 2>/dev/null; then
+    echo "SUCCESS: Updated /etc/hosts"
+   else
+    echo "ERROR: Failed to update /etc/hosts" >&2
+    rm -f "$temp_file"
+    return 1
+   fi
  else
-  echo "ERROR: Failed to update /etc/hosts" >&2
-  rm -f "$temp_file"
-  return 1
+   if echo "$SUDO_PASSWORD" | sudo -S sh -c "cat '$temp_file' >> /etc/hosts" 2>/dev/null; then
+    echo "SUCCESS: Updated /etc/hosts"
+   else
+    echo "ERROR: Failed to update /etc/hosts" >&2
+    rm -f "$temp_file"
+    return 1
+   fi
  fi
  rm -f "$temp_file"
 
@@ -653,6 +702,14 @@ fi
 #run_with_sudo augenrules --load
 #check for rule insertion
 
+   echo "INFO: Setting fapolicyd rules"
+   run_with_sudo cp -vf fapolicyd_rules/*.rules /etc/fapolicyd/rules.d/
+    if run_with_sudo fapolicyd-cli --reload-rules; then
+        echo "SUCCESS: fapolicyd rules reloaded"
+    else
+        echo "ERROR: Unable to determine if fapolicyd rules were accepted."
+        return 1
+    fi
 
 
  echo "SUCCESS: System settings configured"
@@ -1327,6 +1384,31 @@ validate_ip() {
     else
         return 1
     fi
+}
+
+fix_fapolicyd() {
+   echo "INFO: Setting fapolicyd rules"
+   run_with_sudo cp -vf fapolicyd_rules/*.rules /etc/fapolicyd/rules.d/
+    if run_with_sudo fapolicyd-cli --reload-rules; then
+        echo "SUCCESS: fapolicyd rules reloaded"
+    else
+        echo "ERROR: Unable to determine if fapolicyd rules were accepted."
+        return 1
+    fi
+}
+
+# Function to get unique non-loopback IPv4 addresses
+get_default_ip() {
+    # Get the default route next-hop interface
+    local iface
+    iface=$(ip route show default 2>/dev/null | awk '/default/ {print $5; exit}')
+    if [[ -z "$iface" ]]; then
+        echo "No default route found" >&2
+        return 1
+    fi
+
+    # Extract the IP address(es) assigned to that interface (skip 127.*, docker, etc.)
+    ip -o -4 addr show dev "$iface" | awk '{print $4}' | cut -d'/' -f1
 }
 
 # Function to get unique non-loopback IPv4 addresses
