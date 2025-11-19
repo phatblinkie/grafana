@@ -7,6 +7,14 @@ if (( $EUID == 0 )); then
  exit 1
 fi
 
+
+# Only allow to run as admin or uid 1000 -- else compatibility gets borked upd
+if (( $EUID != 1000 )); then
+ echo "ERROR: This script must only br run as the user \"admin\" or a user with UID=1000, your UID is $EUID" >&2
+ exit 1
+fi
+
+
 # Check to make sure rsync, podman, and git-lfs are installed
 if ! command -v rsync &> /dev/null; then
  echo "ERROR: rsync is required but not installed. Please install it first." >&2
@@ -1293,7 +1301,6 @@ copy_source_directories() {
     fi
 
 
- follow up, this may not be needed anymore    
     echo "INFO: Setting permissions on Gitlab directories"
     if run_with_sudo chmod 0777 /mission-share/podman/containers/gitlab /mission-share/podman/containers/gitlab/{logs,config,data} /mission-share/podman/containers/mimir; then
         echo "SUCCESS: Gitlab directory permissions set"
