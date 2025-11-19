@@ -1,6 +1,6 @@
 #!/bin/bash
 
-script_version="1.0.1"
+script_version="2.0.1"
 # Do not allow to run as root
 if (( $EUID == 0 )); then
  echo "ERROR: This script must not be run as root, run as normal user that will manage the containers. 'miadmin?'" >&2
@@ -164,11 +164,6 @@ collect_user_inputs() {
     DEFAULT_GRAFANA_ADMIN_USERNAME="admin"
     DEFAULT_GRAFANA_ADMIN_PW="changeme"
 
-    #nifi
-    DEFAULT_NIFI_DOMAIN_FQDN="nifi.$DEFAULT_OGS_DOMAIN_NAME"
-    DEFAULT_NIFI_ADMIN_USERNAME="admin"
-    DEFAULT_NIFI_ADMIN_PW="changeme"
-
 
     # Check for variables.conf and load initial values
     VARS_FILE="variables.conf"
@@ -221,11 +216,6 @@ GRAFANA_DOMAIN_FQDN='${GRAFANA_DOMAIN_FQDN:-$DEFAULT_GRAFANA_DOMAIN_FQDN}'
 GRAFANA_ADMIN_USERNAME='${GRAFANA_ADMIN_USERNAME:-$DEFAULT_GRAFANA_ADMIN_USERNAME}'
 GRAFANA_ADMIN_PW='${GRAFANA_ADMIN_PW:-$DEFAULT_GRAFANA_ADMIN_PW}'
 
-#Nifi-specific
-NIFI_DOMAIN_FQDN='${NIFI_DOMAIN_FQDN:-$DEFAULT_NIFI_DOMAIN_FQDN}'
-NIFI_ADMIN_USERNAME='${NIFI_ADMIN_USERNAME:-$DEFAULT_NIFI_ADMIN_USERNAME}'
-NIFI_ADMIN_PW='${NIFI_ADMIN_PW:-$DEFAULT_NIFI_ADMIN_PW}'
-
 EOF
 
         # Use vi as the editor
@@ -265,33 +255,28 @@ EOF
 
         # Display summary screen with whiptail
         SUMMARY="Please review the entered values:\n\n"
-	    SUMMARY+="#General-Settings\n"
+	SUMMARY+="#General-Settings\n"
         SUMMARY+="OGS_DOMAIN_NAME: $OGS_DOMAIN_NAME\n"
-	    SUMMARY+="LDAP_SERVER: $LDAP_SERVER\n"
+	SUMMARY+="LDAP_SERVER: $LDAP_SERVER\n"
         SUMMARY+="LDAP_SEARCH_BASE: $LDAP_SEARCH_BASE\n"
-	    SUMMARY+="#use 0.0.0.0 for all addresses\n"
+	SUMMARY+="#use 0.0.0.0 for all addresses\n"
         SUMMARY+="LISTEN_IP_ADDRESS: $LISTEN_IP_ADDRESS\n\n"
         SUMMARY+="LDAP_BIND_USER_VALUE: $LDAP_BIND_USER_VALUE\n"
         SUMMARY+="LDAP_BIND_PASSWORD_VALUE: $LDAP_BIND_PASSWORD_VALUE\n"
         SUMMARY+="\n"
-	    SUMMARY+="Gitlab-specific  - if ldap is down, local master admin account\n"
-	    SUMMARY+="GITLAB_DOMAIN_FQDN: $GITLAB_DOMAIN_FQDN\n"
-	    SUMMARY+="GITLAB_ADMIN_USERNAME: $GITLAB_ADMIN_USERNAME\n"
+	SUMMARY+="Gitlab-specific  - if ldap is down, local master admin account\n"
+	SUMMARY+="GITLAB_DOMAIN_FQDN: $GITLAB_DOMAIN_FQDN\n"
+	SUMMARY+="GITLAB_ADMIN_USERNAME: $GITLAB_ADMIN_USERNAME\n"
         SUMMARY+="#NOTE: pw has to be at least 8 chars and semi complex. This script does not check this.\n"
         SUMMARY+="GITLAB_ADMIN_PW: $GITLAB_ADMIN_PW\n"
-	    SUMMARY+="GITLAB_ADMIN_EMAIL: $GITLAB_ADMIN_EMAIL\n"
+	SUMMARY+="GITLAB_ADMIN_EMAIL: $GITLAB_ADMIN_EMAIL\n"
         SUMMARY+="#for gitlab local login, use root or this admin email as username\n"
-	    SUMMARY+="\n"
-	    SUMMARY+="Grafana-specific  - if ldap is down, local master admin account\n"
-	    SUMMARY+="GRAFANA_DOMAIN_FQDN: $GRAFANA_DOMAIN_FQDN\n"
+	SUMMARY+="\n"
+	SUMMARY+="Grafana-specific  - if ldap is down, local master admin account\n"
+	SUMMARY+="GRAFANA_DOMAIN_FQDN: $GRAFANA_DOMAIN_FQDN\n"
         SUMMARY+="GRAFANA_ADMIN_USERNAME: $GRAFANA_ADMIN_USERNAME\n"
         SUMMARY+="GRAFANA_ADMIN_PW: $GRAFANA_ADMIN_PW\n"
         SUMMARY+="\n"
-        SUMMARY+="Nifi-specific\n"
-        SUMMARY+="NIFI_DOMAIN_FQDN: $NIFI_DOMAIN_FQDN\n"
-        SUMMARY+="NIFI_ADMIN_USERNAME: $NIFI_ADMIN_USERNAME\n"
-        SUMMARY+="NIFI_ADMIN_PW: $NIFI_ADMIN_PW\n"
-	    SUMMARY+="\n"
         SUMMARY+="Does this look correct?"
 
         if ! whiptail --title "Confirm Values" --yesno "$SUMMARY" 40 80 2>>"$ERROR_LOG"; then
@@ -332,11 +317,6 @@ GRAFANA_DOMAIN_FQDN='$GRAFANA_DOMAIN_FQDN'
 GRAFANA_ADMIN_USERNAME='$GRAFANA_ADMIN_USERNAME'
 GRAFANA_ADMIN_PW='$GRAFANA_ADMIN_PW'
 
-#Nifi-specific
-NIFI_DOMAIN_FQDN='$NIFI_DOMAIN_FQDN'
-NIFI_ADMIN_USERNAME='$NIFI_ADMIN_USERNAME'
-NIFI_ADMIN_PW='$NIFI_ADMIN_PW'
-
 EOF
         echo "Saved values to $VARS_FILE" >> "$ERROR_LOG"
 
@@ -356,10 +336,6 @@ EOF
         export GRAFANA_DOMAIN_FQDN
         export GRAFANA_ADMIN_USERNAME
         export GRAFANA_ADMIN_PW
-        #nifi stuff
-        export NIFI_DOMAIN_FQDN
-        export NIFI_ADMIN_USERNAME
-        export NIFI_ADMIN_PW
 
         # Exit the loop if user confirms
         break
@@ -371,71 +347,6 @@ EOF
 
 # ---------- Privileged Functions (run as root) ----------
 
-create_and_share_nfs() {
- echo "INFO: Configuring NFS..."
- echo "INFO: Checking if NFS server is installed"
- if [ $(rpm -qa | grep -c nfs-utils) -eq 0 ]; then
- echo "ERROR: NFS is not installed, run as root 'dnf install nfs-utils'" >&2
- return 1
- fi
- echo "SUCCESS: NFS server is installed"
-
- # Define the NFS export line
- local export_line="/mission-share/nfs *(rw,sync,no_subtree_check,no_root_squash)"
-
- # Check if the export already exists
- echo "INFO: Creating NFS directory /mission-share/nfs"
- run_with_sudo mkdir -p /mission-share/nfs
- run_with_sudo chmod 0777 /mission-share/nfs
- if run_with_sudo grep -q "/mission-share/nfs" /etc/exports; then
- echo "WARNING: /mission-share already exists in /etc/exports. Please check manually."
- else
- # Create a temporary file with the export line
- local temp_file=$(mktemp)
- echo "$export_line" > "$temp_file"
-
- # Append the temporary file to /etc/exports using sudo
- echo "INFO: Appending NFS export to /etc/exports"
- if echo "$SUDO_PASSWORD" | sudo -S sh -c "cat '$temp_file' >> /etc/exports" 2>/dev/null; then
- echo "SUCCESS: Appended to /etc/exports"
- else
- echo "ERROR: Failed to append to /etc/exports" >&2
- rm -f "$temp_file"
- return 1
- fi
-
- # Clean up the temporary file
- rm -f "$temp_file"
- fi
-
- # Reload NFS exports
- echo "INFO: Reloading NFS exports"
- if ! run_with_sudo exportfs -r || ! run_with_sudo exportfs; then
- echo "ERROR: Failed to reload NFS exports" >&2
- return 1
- fi
- echo "SUCCESS: NFS exports reloaded"
-
- # Create NFS mission-share directories
- echo "INFO: Creating NFS mission-share directories"
- run_with_sudo mkdir -p /mission-share/nfs/tide/{ccads-in,ccads-out,arc-out,fuse-out,sceptre-in,sceptre-out,esa-out,eped-out,idm-in,fail,tmp,save,idm-in/save}
- run_with_sudo mkdir -p /mission-share/nfs/audit_logs
-
- # Set permissions
- echo "INFO: Setting permissions for NFS directories"
- run_with_sudo chmod -R 777 /mission-share/nfs
- echo "SUCCESS: Permissions set for NFS directories"
-
- # Enable and start NFS server
- echo "INFO: Enabling and starting NFS server"
- if ! run_with_sudo systemctl enable --now nfs-server; then
- echo "ERROR: Failed to enable or start nfs-server" >&2
- return 1
- fi
- echo "SUCCESS: NFS server enabled and started"
-
- echo "SUCCESS: NFS configuration completed"
-}
 
 rename_ssl() {
  local fqdn="$1"
@@ -488,27 +399,9 @@ generate_ssl_keys_gitlab() {
  cd /mission-share/vast-ca/
  echo "INFO: Creating SSL certificates"
 
- #echo "INFO: Please enter desired FQDN for GITLAB(e.g. gitlab.army.local):"
- #read -r gitlab_fqdn
- #echo "INFO: You entered: $gitlab_fqdn"
  gitlab_fqdn=$GITLAB_DOMAIN_FQDN
 
- #hostname -i | tr ' ' '\n' | sort | uniq
- #echo "INFO: Please enter the IP address for hosting GitLab:"
- #read -r msnsvr_ip
- #echo "INFO: You entered: $msnsvr_ip"
  msnsvr_ip=$LISTEN_IP_ADDRESS
- #local temp_file=$(mktemp)
- #echo "$msnsvr_ip $gitlab_fqdn" > "$temp_file"
- #echo "INFO: Updating /etc/hosts with gitlab details"
- #if echo "$SUDO_PASSWORD" | sudo -S sh -c "cat '$temp_file' >> /etc/hosts" 2>/dev/null; then
- #echo "SUCCESS: Updated /etc/hosts"
- #else
- #echo "ERROR: Failed to update /etc/hosts" >&2
- #rm -f "$temp_file"
- #return 1
- #fi
- #rm -f "$temp_file"
 
  # Creating Gitlab Certs
  echo -e "\n\nINFO: Creating Gitlab certificates"
@@ -534,22 +427,10 @@ generate_ssl_keys() {
  cd /mission-share/vast-ca/
  echo "INFO: Creating SSL certificates"
 
- #hostname -i | tr ' ' '\n' | sort | uniq
- #echo "INFO: Please enter msnsvr IP address:"
- #read -r msnsvr_ip
- #echo "INFO: You entered: $msnsvr_ip"
  msnsvr_ip=$LISTEN_IP_ADDRESS
 
- #hostname
- #echo "INFO: Please enter msnsvr FQDN (e.g. msnsvr.army.local):"
- #read -r msnsvr_fqdn
- #echo "INFO: You entered: $msnsvr_fqdn"
  msnsvr_fqdn=$NIFI_DOMAIN_FQDN
 
- #cat /etc/resolv.conf
- #echo "INFO: Please enter domain name (e.g. army.local):"
- #read -r domain
- #echo "INFO: You entered: $domain"
  domain=$OGS_DOMAIN_NAME
  #used by nginx template
  echo "DOMAIN=$domain" > /mission-share/podman/containers/keys/DOMAIN
@@ -600,16 +481,6 @@ generate_ssl_keys() {
  return 1
  fi
 
- # Creating Nifi Certs
- echo "INFO: Creating Nifi certificates"
- printf "$NIFI_DOMAIN_FQDN\n\msnsvr.$OGS_DOMAIN_NAME\n\nUS\nMaryland\nAPG\nFII\n3650\nsilkwave\n" | ./server-cert-gen.sh /mission-share/podman/containers/keys/nifi/
- if rename_ssl "$NIFI_DOMAIN_FQDN" "/mission-share/podman/containers/keys/nifi/"; then
- podman unshare chmod 0644 /mission-share/podman/containers/keys/nifi/ssl.*
- echo "SUCCESS: Nifi certificates created and renamed"
- else
- echo "ERROR: Failed to create or rename Nifi certificates" >&2
- return 1
- fi
 
  # Creating NGINX proxy certs
  echo "INFO: Creating NGINX proxy certificates"
@@ -703,7 +574,7 @@ configure_system_settings() {
  echo "INFO: Configuring system settings"
 
  safe_modify "/etc/sysctl.d/99-sysctl.conf" \
- "run_with_sudo sed -i 's/^user\.max_user_namespaces=0/user.max_user_namespaces=999999/' /etc/sysctl.d/99-sysctl.conf" \
+ "run_with_sudo sed -i 's/^user\.max_user_namespaces=0/user.max_user_namespaces=9999/' /etc/sysctl.d/99-sysctl.conf" \
  "Modifying user.max_user_namespaces setting"
 
  safe_modify "/usr/share/rhel/secrets/rhsm/syspurpose/syspurpose.json" \
@@ -726,7 +597,7 @@ fi
 
  # Apply sysctl changes immediately
  echo "INFO: Applying sysctl changes"
- if run_with_sudo sysctl -p /etc/sysctl.d/99-sysctl.conf | grep -q 'user.max_user_namespaces = 999999'; then
+ if run_with_sudo sysctl -p /etc/sysctl.d/99-sysctl.conf | grep -q 'user.max_user_namespaces = 9999'; then
     echo "SUCCESS: Sysctl changes applied"
  else
     echo "ERROR: Failed to apply sysctl changes" >&2
@@ -757,20 +628,21 @@ fi
     return 1
  fi
 
+#needs work, or removal, probably removal
 #in order for podman image imports to work without the box halting, relax the auditd a little
-echo "INFO: fixing auditd to be leanient on podman"
-run_with_sudo cp configs/99-podman-load.rules /etc/audit/rules.d/
-echo "INFO: regenerating rules"
-run_with_sudo augenrules
+#echo "INFO: fixing auditd to be leanient on podman"
+#run_with_sudo cp configs/99-podman-load.rules /etc/audit/rules.d/
+#echo "INFO: regenerating rules"
+#run_with_sudo augenrules
 #this system has duplicated rules, which prevents it from loading, so be nice and filter them out of the final results
 #too bad augenrules does do this
-echo "INFO: backing up rules, and removing duplicate rules"
-run_with_sudo awk '!seen[$0]++' /etc/audit/audit.rules > audit.rules.fixed
-run_with_sudo cp -f /etc/audit/audit.rules audit.rules.orig
-run_with_sudo cp -f audit.rules.fixed /etc/audit/audit.rules
+#echo "INFO: backing up rules, and removing duplicate rules"
+#run_with_sudo awk '!seen[$0]++' /etc/audit/audit.rules > audit.rules.fixed
+#run_with_sudo cp -f /etc/audit/audit.rules audit.rules.orig
+#run_with_sudo cp -f audit.rules.fixed /etc/audit/audit.rules
 #now load the rules, which should not log podman stuff, and not have duplicates
-echo "INFO: loading new ruleset"
-run_with_sudo augenrules --load
+#echo "INFO: loading new ruleset"
+#run_with_sudo augenrules --load
 #check for rule insertion
 
 
@@ -941,17 +813,6 @@ install_nginx() {
   return 1
  fi
 
- #find out domain name, ask for it, or source it
-#if [ ! -f /mission-share/podman/containers/keys/DOMAIN ] ; then
-#    echo "INFO: Please enter domain name (e.g. army.local):"
-#    read -r domain
-#    echo "INFO: You entered: $domain"
-
-    #used by nginx template
-    #echo "DOMAIN=$OGS_DOMAIN_NAME" > /mission-share/podman/containers/keys/DOMAIN
- #else
- #   . /mission-share/podman/containers/keys/DOMAIN
- #fi
 
  #replace the DOMAIN in the nginx.conf template
  echo "substituting domain value in nginx template file"
@@ -1046,14 +907,10 @@ configure_firewall() {
  fi
 
  declare -A PORTS=(
- ["HTTP"]="80/tcp"
  ["HTTPs"]="443/tcp"
  ["Grafana"]="3000/tcp"
  ["Loki"]="3100/tcp"
  ["Mimir"]="9009/tcp"
- ["Nifi-ssl"]="8443/tcp"
- ["Nifi-3200"]="3200/tcp"
- ["Nifi-9092"]="9092/tcp"
  ["Gitlab-ssl"]="9443/tcp"
  ["Gitlab-http"]="8088/tcp"
  ["Gitlab-ssh"]="2200/tcp"
@@ -1074,14 +931,6 @@ configure_firewall() {
  echo "INFO: Port $port for $service is already configured"
  fi
  done
-
- echo "INFO: Adding NFS service"
- if run_with_sudo firewall-cmd --permanent --add-service="nfs"; then
- echo "SUCCESS: NFS service added to firewall"
- else
- echo "ERROR: Failed to add NFS service to firewall" >&2
- return 1
- fi
 
  echo "INFO: Reloading firewalld"
  if run_with_sudo firewall-cmd --reload; then
@@ -1113,14 +962,10 @@ empty_firewall_rules() {
  fi
 
  declare -A PORTS=(
- ["HTTP"]="80/tcp"
  ["HTTPs"]="443/tcp"
  ["Grafana"]="3000/tcp"
  ["Loki"]="3100/tcp"
  ["Mimir"]="9009/tcp"
- ["Nifi-ssl"]="8443/tcp"
- ["Nifi-3200"]="3200/tcp"
- ["Nifi-9092"]="9092/tcp"
  ["Gitlab-ssl"]="9443/tcp"
  ["Gitlab-http"]="8088/tcp"
  ["Gitlab-ssh"]="2200/tcp"
@@ -1141,14 +986,6 @@ empty_firewall_rules() {
     echo "INFO: Port $port for $service was not already configured"
  fi
  done
-
- echo "INFO: Adding NFS service"
- if run_with_sudo firewall-cmd --permanent --remove-service="nfs"; then
- echo "SUCCESS: NFS service removed from firewall"
- else
- echo "ERROR: Failed to remove NFS service to firewall" >&2
- return 1
- fi
 
  echo "INFO: Reloading firewalld"
  if run_with_sudo firewall-cmd --reload; then
@@ -1177,7 +1014,7 @@ pull_container_images() {
 
  # Login to registry
  echo "INFO: Logging into registry1.dso.mil"
- if podman login -u Brian_Bowen -p '0o9i8u7y)O(I*U&Y' registry1.dso.mil; then
+ if podman login -u Brian_Bowen -p '1q2w3e4r!Q@W#E$R' registry1.dso.mil; then
  echo "SUCCESS: Logged into registry1.dso.mil"
  else
  echo "ERROR: Failed to log into registry1.dso.mil" >&2
@@ -1189,7 +1026,7 @@ pull_container_images() {
 
  # Pull and tag Grafana
  echo "INFO: Downloading grafana version ${GRAFANA_VERSION}"
- if podman pull registry1.dso.mil/ironbank/opensource/grafana/grafana:${G RAFANA_VERSION} && \
+ if podman pull registry1.dso.mil/ironbank/opensource/grafana/grafana:${GRAFANA_VERSION} && \
  podman image tag grafana:${GRAFANA_VERSION} grafana-oss-custom:${GRAFANA_VERSION}; then
  echo "SUCCESS: Grafana image pulled and tagged"
  else
@@ -1217,15 +1054,6 @@ pull_container_images() {
  return 1
  fi
 
- # Pull and tag Nifi
- echo "INFO: Downloading nifi version ${NIFI_VERSION}"
- if podman pull docker.io/phatblinkie/bigimage:tsb_py && \
- podman image tag nifi:${NIFI_VERSION} nifi-custom:${NIFI_VERSION}; then
- echo "SUCCESS: Nifi image pulled and tagged"
- else
- echo "ERROR: Failed to pull or tag Nifi image" >&2
- return 1
- fi
 
  # Pull and tag Gitlab-CE
  echo "INFO: Downloading Gitlab-ce version ${GITLAB_VERSION}"
@@ -1397,11 +1225,8 @@ copy_source_directories() {
           "$path/grafana" \
           "$path/loki" \
           "$path/mimir" \
-          "$path/nifi" \
-          "$path/nifi/"{conf,lib,logs} \
           "$path/configs" \
-          "$path/keys/"{grafana,mimir,loki,nifi,nginx,gitlab} \
-          "$rootpath/tide/"{out,in,ccads-in,ccads-out,arc-out,fuse-out,sceptre-in,sceptre-out,esa-out,eped-out,fail,tmp,save,idm-in/save} \
+          "$path/keys/"{grafana,mimir,loki,nginx,gitlab} \
           "$rootpath/audit_logs" \
           "$path/gitlab/"{logs,config,data}; then
         echo "SUCCESS: Directories created"
@@ -1459,68 +1284,24 @@ copy_source_directories() {
         return 1
     fi
 
-    echo "INFO: Copying vast-ca and tools to new location"
-    if podman unshare rsync -ah vast-ca $rootpath/ && \
-       podman unshare rsync -ah tools $rootpath/; then
+    echo "INFO: Copying vast-ca to new location"
+    if podman unshare rsync -ah vast-ca $rootpath/ ; then
         echo "SUCCESS: Copied vast-ca and tools"
     else
         echo "ERROR: Failed to copy vast-ca or tools" >&2
         return 1
     fi
-	
-    echo "INFO: Copying zfts to new location"
-    if podman unshare rsync -ah zfts $rootpath/ ; then
-        echo "SUCCESS: Copied zfts"
-    else
-        echo "ERROR: Failed to copy zfts" >&2
-        return 1
-    fi
-	
-    echo "INFO: Setting permissions on tide directories"
-    if podman unshare chmod -R 777 $rootpath/tide; then
-        echo "SUCCESS: Permissions set on tide directories"
-    else
-        echo "ERROR: Failed to set permissions on tide directories" >&2
-        return 1
-    fi
 
-    echo "INFO: Copying Nifi configuration files to $path/nifi"
-    if podman unshare rsync -avh nifi/ $path/nifi/; then
-        echo "SUCCESS: Nifi configuration files copied"
-    else
-        echo "ERROR: Failed to copy Nifi configuration files" >&2
-        return 1
-    fi
 
-    echo "INFO: Fixing permissions on Nifi directories"
-    if podman unshare find /mission-share/podman/containers/nifi/ -type d -exec chmod 0777 {} \; && \
-       podman unshare find /mission-share/podman/containers/nifi/ -type f -exec chmod 0644 {} \; && \
-       grep $USER /etc/subuid | awk -F: '{ print $2 }' | awk -F- '{ print $1 }' | while read -r uid; do
-           echo "INFO: Setting permissions for user $USER with UID $uid"
-           if run_with_sudo chmod 0777 $path/nifi/logs $path/nifi/conf $path/nifi/lib && \
-              run_with_sudo chown -R $uid:$uid $path/nifi/logs $path/nifi/conf $path/nifi/lib; then
-               echo "SUCCESS: Permissions set for Nifi directories with UID $uid"
-           else
-               echo "ERROR: Failed to set permissions for Nifi directories with UID $uid" >&2
-               return 1
-           fi
-       done && \
-       run_with_sudo chmod 0777 /mission-share/podman/containers/nifi/conf/*.zip && \
-       run_with_sudo chmod 0777 /mission-share/podman/containers/nifi/conf/*.gz; then
-        echo "SUCCESS: Nifi directory permissions fixed"
-    else
-        echo "ERROR: Failed to fix Nifi directory permissions" >&2
-        return 1
-    fi
-
-    echo "INFO: Setting permissions on Gitlab directories"
-    if run_with_sudo chmod 0777 /mission-share/podman/containers/gitlab && \
-       run_with_sudo chmod 0777 /mission-share/podman/containers/gitlab/{logs,config,data}; then
-        echo "SUCCESS: Gitlab directory permissions set"
-    else
-        echo "ERROR: Failed to set Gitlab directory permissions" >&2
-        return 1
-    fi
+# follow up, this may not be needed anymore    
+#    echo "INFO: Setting permissions on Gitlab directories"
+#    if run_with_sudo chmod 0777 /mission-share/podman/containers/gitlab && \
+#       run_with_sudo chmod 0777 /mission-share/podman/containers/gitlab/{logs,config,data}; then
+#        echo "SUCCESS: Gitlab directory permissions set"
+#    else
+#        echo "ERROR: Failed to set Gitlab directory permissions" >&2
+#        return 1
+#    fi
 
     echo "SUCCESS: Source directory copying completed"
 }
@@ -1550,76 +1331,6 @@ get_ip_addresses() {
 
 #!/bin/bash
 
-# Subroutine to gather LDAP configuration from user
-gather_ldap_config() {
-    local host bind_dn password base
-    local password_escaped bind_dn_escaped base_escaped
-
-    # Prompt for host
-    while true; do
-        read -e -p "Enter LDAP server host (e.g., 192.168.10.200): " -i "192.168.10.200" host
-        # Basic IP validation
-        if [[ $host =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-            break
-        else
-            echo "ERROR: Please enter a valid IP address."
-        fi
-    done
-
-    # Prompt for bind_dn
-    while true; do
-        read -e -p "Enter LDAP binding service account (e.g., administrator@localdomain.mil): " -i "serviceaccount@domain.mil" bind_dn
-        if [[ -n "$bind_dn" ]]; then
-            break
-        else
-            echo "ERROR: Bind DN cannot be empty."
-        fi
-    done
-
-    # Prompt for password
-    while true; do
-        read -e -p "Enter LDAP service account password: " -i "changeme" password
-        echo
-        if [[ -n "$password" ]]; then
-            break
-        else
-            echo "ERROR: Password cannot be empty."
-        fi
-    done
-
-    # Prompt for base, prepopulated with example
-    while true; do
-        read -e -p "Enter LDAP user OU base ( OU=Users,OU=OGS,DC=j114,DC=army,DC=mil): " -i "OU=Users,OU=OGS,DC=j114,DC=army,DC=mil" base
-        if [[ -n "$base" ]]; then
-            break
-        else
-            echo "ERROR: Base cannot be empty."
-        fi
-    done
-
-    # Escape special characters for sed
-    password_escaped=$(echo "$password" | sed -e 's/[\/&]/\\&/g')
-    bind_dn_escaped=$(echo "$bind_dn" | sed -e 's/[\/&]/\\&/g')
-    base_escaped=$(echo "$base" | sed -e 's/[\/&]/\\&/g')
-
-    # Store escaped values for use in the main function
-    LDAP_HOST="$host"
-    LDAP_BIND_DN="$bind_dn_escaped"
-    LDAP_PASSWORD="$password_escaped"
-    LDAP_BASE="$base_escaped"
-
-
-    echo "Summary for LDAP settings"
-    echo
-    echo "--------------------------------"
-    echo "LDAP_HOST=$host"
-    echo "LDAP_BIND_DN=$bind_dn_escaped"
-    echo "LDAP_PASSWORD=$password_escaped"
-    echo "LDAP_BASE=$base_escaped"
-    echo "--------------------------------"
-
-}
-
 build_and_start_pod_gitlab() {
     echo "INFO: Building and starting Gitlab pod"
 
@@ -1630,14 +1341,15 @@ build_and_start_pod_gitlab() {
         echo "INFO: No Gitlab pod was running or stop command ignored"
     fi
 
-    echo "INFO: Setting permissions on Gitlab directories"
-    if podman unshare chmod -v 0777 /mission-share/podman/containers/gitlab && \
-       podman unshare chmod -v 0777 /mission-share/podman/containers/gitlab/{config,logs,data}; then
-        echo "SUCCESS: Gitlab directory permissions set"
-    else
-        echo "ERROR: Failed to set Gitlab directory permissions" >&2
-        return 1
-    fi
+# follow up, may not be needed anymore
+#    echo "INFO: Setting permissions on Gitlab directories"
+#    if podman unshare chmod -v 0777 /mission-share/podman/containers/gitlab && \
+#       podman unshare chmod -v 0777 /mission-share/podman/containers/gitlab/{config,logs,data}; then
+#        echo "SUCCESS: Gitlab directory permissions set"
+#    else
+#        echo "ERROR: Failed to set Gitlab directory permissions" >&2
+#        return 1
+#    fi
 
     podmanshare="/mission-share/podman"
     echo "INFO: Setting SELinux context for $podmanshare"
@@ -1674,20 +1386,6 @@ build_and_start_pod_gitlab() {
         return 1
     fi
 
-    # Read domain from the ssl stage
-    #. /mission-share/podman/containers/keys/gitlab/GITLAB_DOMAIN
-
-    # Ask admin username
-    #GITLAB_ADMIN_USERNAME='admin@localhost.com'
-    #echo "INFO: Please enter the admin email for GitLab (ex. $GITLAB_ADMIN_USERNAME)"
-    #read -r GITLAB_ADMIN_USERNAME
-    #echo "INFO: You entered: $GITLAB_ADMIN_USERNAME"
-
-    # Ask admin password
-    #GITLAB_ADMIN_PW='!Changeme12345'
-    #echo "INFO: Please Enter the admin login password (ex. $GITLAB_ADMIN_PW)"
-    #read -r GITLAB_ADMIN_PW
-    #echo "INFO: You entered: $GITLAB_ADMIN_PW"
     gitlab_admin_password_escaped=$(echo "$GITLAB_ADMIN_PW" | sed -e 's/[\/&]/\\&/g')
 
 
@@ -1741,9 +1439,6 @@ build_and_start_pod_gitlab() {
     # Use $IP_ADDRESS in the rest of your script
     echo "Proceeding with IP address: $IP_ADDRESS"
 
-    # Gather LDAP information
-    #echo "INFO: Gathering LDAP configuration"
-    #gather_ldap_config
 
     # Generate and deploy pod YAML
     echo "INFO: Generating new GitLab pod YAML from template"
@@ -1871,13 +1566,14 @@ build_and_start_pod() {
         echo "INFO: No OGS pod was running or stop command ignored"
     fi
 
-    echo "INFO: Setting permissions on container directories"
-    if podman unshare chmod -v 0777 /mission-share/podman/containers/{grafana,mimir,loki,nifi,nifi/*}; then
-        echo "SUCCESS: Container directory permissions set"
-    else
-        echo "ERROR: Failed to set container directory permissions" >&2
-        return 1
-    fi
+#follow up may not be needed anymore
+#    echo "INFO: Setting permissions on container directories"
+#    if podman unshare chmod -v 0777 /mission-share/podman/containers/{grafana,mimir,loki}; then
+#        echo "SUCCESS: Container directory permissions set"
+#    else
+#        echo "ERROR: Failed to set container directory permissions" >&2
+#        return 1
+#    fi
 
     echo "INFO: Loading versions from versions.txt"
     if . versions.txt; then
@@ -1999,11 +1695,10 @@ build_and_start_pod() {
 
     echo "SUCCESS: OGS pod deployment completed"
     echo "INFO:   OGS services available:"
-    echo "INFO: - Grafana on port 3000 (admin/admin)"
+    echo "INFO: - Grafana on port 3000"
     echo "INFO: - Mimir on port 9009"
     echo "INFO: - Loki on port 3100"
-    echo "INFO: - Nifi on ports 8443, 8080, 3200, 9092"
-    echo "INFO: - Parent NGINX proxy on ports 80 and 443"
+    echo "INFO: - Parent NGINX proxy on port 443"
     cd "$OLDPWD"
 }
 
@@ -2139,8 +1834,7 @@ stop_and_delete_pod() {
             deletepath="/mission-share/podman/containers/ogs-pod.yml
             /mission-share/podman/containers/grafana
             /mission-share/podman/containers/loki
-            /mission-share/podman/containers/mimir
-            /mission-share/podman/containers/nifi"
+            /mission-share/podman/containers/mimir"
         elif [ "$podname" == "gitlab" ]; then
             deletepath="/mission-share/podman/containers/gitlab-pod.yml
             /mission-share/podman/containers/gitlab"
@@ -2226,8 +1920,7 @@ stop_and_delete_pod_auto() {
             deletepath="/mission-share/podman/containers/ogs-pod.yml
             /mission-share/podman/containers/grafana
             /mission-share/podman/containers/loki
-            /mission-share/podman/containers/mimir
-            /mission-share/podman/containers/nifi"
+            /mission-share/podman/containers/mimir"
         elif [ "$podname" == "gitlab" ]; then
             deletepath="/mission-share/podman/containers/gitlab-pod.yml
             /mission-share/podman/containers/gitlab"
@@ -2381,20 +2074,6 @@ cleanup_pod_services() {
     return 0
 }
 
-empty_nfs_exports() {
-
-   #its sad that the run_with_sudo does not seem to be able to handle >> or >
-   local temp_file=$(mktemp)
-   echo "" > "$temp_file"
-
-   # Append the temporary file to /etc/exports using sudo
-   echo "INFO: Removing content from /etc/exports"
-   if echo "$SUDO_PASSWORD" | sudo -S sh -c "cat '$temp_file' > /etc/exports" 2>/dev/null; then
-      echo "SUCCESS: Appended to /etc/exports"
-   else
-      echo "ERROR: failed to empty the /etc/exports file"
-   fi
-}
 
 check_vars_file() {
     # Check for variables.conf and load initial values
@@ -2419,10 +2098,6 @@ check_vars_file() {
         export GRAFANA_DOMAIN_FQDN
         export GRAFANA_ADMIN_USERNAME
         export GRAFANA_ADMIN_PW
-        #nifi stuff
-        export NIFI_DOMAIN_FQDN
-        export NIFI_ADMIN_USERNAME
-        export NIFI_ADMIN_PW
         export VARS_FOUND=" \u2714 Vars file found"
         return 1
     else
@@ -2440,34 +2115,32 @@ show_menu() {
     echo "       Monitoring Stack Deployment Tool - Ver. $script_version"
     echo "========================================================================"
     echo " Privileged Operations:"
-    echo -e " 0) Input/adjust parameters $VARS_FOUND"
-    echo " 1) Configure System Settings"
-    echo " 2) Provision Disk for Podman Data"
-    echo " 3) Copy container source directories"
-    echo " 4) Generate SSL Certificates - GLAM packages"
+    echo -e " 0)  Input/adjust parameters $VARS_FOUND"
+    echo " 1)  Configure System Settings"
+    echo " 2)  Provision Disk for Podman Data"
+    echo " 3)  Copy container source directories"
+    echo " 4)  Generate SSL Certificates - GLAM packages"
     echo " 4g) Generate SSL Certificates - GitLab"
-    echo " 5) Configure NFS Server"
-    echo " 6) Install and Configure Nginx Proxy"
-    echo " 7) Configure Firewall"
+    echo " 5)  Install and Configure Nginx Proxy"
+    echo " 6)  Configure Firewall"
     echo ""
     echo "======================== Image Imports ================================="
-    echo "     NOTE: Choose based off networking available "
-    echo " 8i) Pull Container Images - Internet required"
-    echo " 8n) Install Packaged Images - No Internet required"
+    echo "      NOTE: Choose based off networking available "
+    echo " 7)  Pull Container Images   - Internet required"
+    echo " 8)  Install Packaged Images - No Internet required"
     echo ""
     echo "========================Pod Options====================================="
-    echo " 9) Build and Start (graf,loki,mimir,nifi) Pod"
+    echo " 9)  Build and Start (graf,loki,mimir) Pod"
     echo " 9g) Build and Start Gitlab Pod"
     echo ""
-    echo " q) Exit"
+    echo " q)  Exit"
     echo ""
     echo "===================== Un-Install Options ==============================="
-    echo " u1) Stop and Delete OGS (glam) pod"
-    echo " u2) Stop and Delete GITLAB pod"
-    echo " u3) Runs u1, u2, and completely clear out all PODS, containers, keys, files and images on /mission-share"
-    echo "      -- takes /mission-share back to empty state"
-    echo " u4) Clear out NFS server exports file"
-    echo " u5) Remove Customized Firewall rules"
+    echo " u1)  Stop and Delete OGS (glam) pod"
+    echo " u2)  Stop and Delete GITLAB pod"
+    echo " u3)  Runs u1, u2, and completely clear out all PODS, containers, keys, files and images on /mission-share"
+    echo "       -- takes /mission-share back to empty state"
+    echo " u4)  Remove Customized Firewall rules"
 }
 
 
@@ -2524,11 +2197,10 @@ while true; do
         3) copy_source_directories ;;
         4) generate_ssl_keys ;;
         4g) generate_ssl_keys_gitlab ;;
-	    5) create_and_share_nfs ;;
-        6) install_nginx ;;
-        7) configure_firewall ;;
-        8i) pull_container_images ;;
-        8n) install_tarball_images ;;
+        5) install_nginx ;;
+        6) configure_firewall ;;
+        7) pull_container_images ;;
+        8) install_tarball_images ;;
         9) build_and_start_pod ;;
         9g) build_and_start_pod_gitlab ;;
         u1)
@@ -2584,8 +2256,7 @@ while true; do
             #run podman reset again, to rebuild silently the needed file structure for container images
             podman system reset -f >/dev/null 2>&1
             ;;
-        u4) empty_nfs_exports ;;
-        u5) empty_firewall_rules ;;
+        u4) empty_firewall_rules ;;
         q)
             echo "INFO: Exiting. Have a nice day!"
             exit 0
