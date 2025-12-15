@@ -56,12 +56,12 @@ http {
         server_name _;
         ssl_certificate     /etc/pki/tls/ssl.crt;
         ssl_certificate_key /etc/pki/tls/ssl.key;
-        return 444;                 # Drop unmatched traffic
         
         #used for installing allow rpms and exe by ansible
         location /rpms {
             root /usr/share/nginx/html;
         }
+        return 444;                 # Drop unmatched traffic
     }
     # -------------------------------------------------------------------------
     #  Reverse Proxy for Grafana  (internal only)
