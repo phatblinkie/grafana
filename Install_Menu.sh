@@ -159,14 +159,6 @@ collect_user_inputs() {
     DEFAULT_LDAP_BIND_USER="forward.sa@$DEFAULT_OGS_DOMAIN_NAME"
     DEFAULT_LDAP_BIND_PASSWORD_VALUE="changeme"
 
-    #gitlab
-    DEFAULT_GITLAB_DOMAIN_FQDN="gitlab.$DEFAULT_OGS_DOMAIN_NAME"
-    DEFAULT_GITLAB_ADMIN_USERNAME="root"
-    #pw has to be at least 8 chars and semi complex. This script does not check this.
-    DEFAULT_GITLAB_ADMIN_PW="changeme"
-    DEFAULT_GITLAB_ADMIN_EMAIL="$DEFAULT_GITLAB_ADMIN_USERNAME@$DEFAULT_OGS_DOMAIN_NAME"
-    #for gitlab local login, use root or this admin email as username
-
     #grafana
     DEFAULT_GRAFANA_DOMAIN_FQDN="grafana.$DEFAULT_OGS_DOMAIN_NAME"
     DEFAULT_GRAFANA_ADMIN_USERNAME="admin"
@@ -210,14 +202,6 @@ LISTEN_IP_ADDRESS='${LISTEN_IP_ADDRESS:-$DEFAULT_LISTEN_IP_ADDRESS}'
 #should be a service account, that cannot change anything, likely forward.sa@$DEFAULT_OGS_DOMAIN_NAME
 LDAP_BIND_USER_VALUE='${LDAP_BIND_USER_VALUE:-$DEFAULT_LDAP_BIND_USER}'
 LDAP_BIND_PASSWORD_VALUE='${LDAP_BIND_PASSWORD_VALUE:-$DEFAULT_LDAP_BIND_PASSWORD_VALUE}'
-
-#Gitlab-specific - if ldap is down, local master admin account
-GITLAB_DOMAIN_FQDN='${GITLAB_DOMAIN_FQDN:-$DEFAULT_GITLAB_DOMAIN_FQDN}'
-GITLAB_ADMIN_USERNAME='${GITLAB_ADMIN_USERNAME:-$DEFAULT_GITLAB_ADMIN_USERNAME}'
-#NOTE: pw has to be at least 8 chars and semi complex. This script does not check this.
-GITLAB_ADMIN_PW='${GITLAB_ADMIN_PW:-$DEFAULT_GITLAB_ADMIN_PW}'
-GITLAB_ADMIN_EMAIL='${GITLAB_ADMIN_EMAIL:-$DEFAULT_GITLAB_ADMIN_EMAIL}'
-#for gitlab local login, use root or this admin email as username
 
 #Grafana-specific - if ldap is down, local master admin account
 GRAFANA_DOMAIN_FQDN='${GRAFANA_DOMAIN_FQDN:-$DEFAULT_GRAFANA_DOMAIN_FQDN}'
@@ -272,14 +256,6 @@ EOF
         SUMMARY+="LDAP_BIND_USER_VALUE: $LDAP_BIND_USER_VALUE\n"
         SUMMARY+="LDAP_BIND_PASSWORD_VALUE: $LDAP_BIND_PASSWORD_VALUE\n"
         SUMMARY+="\n"
-	SUMMARY+="Gitlab-specific  - if ldap is down, local master admin account\n"
-	SUMMARY+="GITLAB_DOMAIN_FQDN: $GITLAB_DOMAIN_FQDN\n"
-	SUMMARY+="GITLAB_ADMIN_USERNAME: $GITLAB_ADMIN_USERNAME\n"
-        SUMMARY+="#NOTE: pw has to be at least 8 chars and semi complex. This script does not check this.\n"
-        SUMMARY+="GITLAB_ADMIN_PW: $GITLAB_ADMIN_PW\n"
-	SUMMARY+="GITLAB_ADMIN_EMAIL: $GITLAB_ADMIN_EMAIL\n"
-        SUMMARY+="#for gitlab local login, use root or this admin email as username\n"
-	SUMMARY+="\n"
 	SUMMARY+="Grafana-specific  - if ldap is down, local master admin account\n"
 	SUMMARY+="GRAFANA_DOMAIN_FQDN: $GRAFANA_DOMAIN_FQDN\n"
         SUMMARY+="GRAFANA_ADMIN_USERNAME: $GRAFANA_ADMIN_USERNAME\n"
@@ -312,14 +288,6 @@ LISTEN_IP_ADDRESS='$LISTEN_IP_ADDRESS'
 LDAP_BIND_USER_VALUE='$LDAP_BIND_USER_VALUE'
 LDAP_BIND_PASSWORD_VALUE='$LDAP_BIND_PASSWORD_VALUE'
 
-#Gitlab-specific - if ldap is down, local master admin account
-GITLAB_DOMAIN_FQDN='$GITLAB_DOMAIN_FQDN'
-GITLAB_ADMIN_USERNAME='$GITLAB_ADMIN_USERNAME'
-#NOTE: pw has to be at least 8 chars and semi complex. This script does not check this.
-GITLAB_ADMIN_PW='$GITLAB_ADMIN_PW'
-GITLAB_ADMIN_EMAIL='$GITLAB_ADMIN_EMAIL'
-#for gitlab local login, use root or this admin email as username
-
 #Grafana-specific  - if ldap is down, local master admin account
 GRAFANA_DOMAIN_FQDN='$GRAFANA_DOMAIN_FQDN'
 GRAFANA_ADMIN_USERNAME='$GRAFANA_ADMIN_USERNAME'
@@ -335,11 +303,6 @@ EOF
         export LISTEN_IP_ADDRESS
         export LDAP_BIND_USER_VALUE
         export LDAP_BIND_PASSWORD_VALUE
-        #gitlab stuff
-        export GITLAB_DOMAIN_FQDN
-        export GITLAB_ADMIN_USERNAME
-        export GITLAB_ADMIN_PW
-        export GITLAB_ADMIN_EMAIL
         #grafana stuff
         export GRAFANA_DOMAIN_FQDN
         export GRAFANA_ADMIN_USERNAME
@@ -403,66 +366,6 @@ rename_ssl() {
  echo "SUCCESS: SSL file renaming completed"
 }
 
-generate_ssl_keys_gitlab() {
- cd /mission-share/vast-ca/
- echo "INFO: Creating SSL certificates"
-
- gitlab_fqdn=$GITLAB_DOMAIN_FQDN
-
- #msnsvr_ip=$LISTEN_IP_ADDRESS
- msnsvr_ip=$(get_default_ip)
- # Creating Gitlab Certs
-
- domain=$OGS_DOMAIN_NAME
- #used by nginx template
- echo "DOMAIN=$domain" > /mission-share/podman/containers/keys/DOMAIN
-
- local temp_file=$(mktemp)
- mkdir -p /mission-share/.tmp 2>/dev/null
- echo "$msnsvr_ip $gitlab_fqdn addedbyscript1" > "$temp_file"
- echo "INFO: Updating /etc/hosts with msnsvr details"
-  #only inject if its not there, otherwise remove it first, then inject so its not duplicated
- if [ `grep -c addedbyscript /etc/hosts` -gt 0 ]
- then
-   #remove old entry
-   echo "$SUDO_PASSWORD" | sudo -S sh -c "sed -i '/addedbyscript1/d' /etc/hosts" 2>/dev/null
-   #update with new entry
-   if echo "$SUDO_PASSWORD" | sudo -S sh -c "cat '$temp_file' >> /etc/hosts" 2>/dev/null; then
-    echo "SUCCESS: Updated /etc/hosts"
-   else
-    echo "ERROR: Failed to update /etc/hosts" >&2
-    rm -f "$temp_file"
-    return 1
-   fi
- else
-   if echo "$SUDO_PASSWORD" | sudo -S sh -c "cat '$temp_file' >> /etc/hosts" 2>/dev/null; then
-    echo "SUCCESS: Updated /etc/hosts"
-   else
-    echo "ERROR: Failed to update /etc/hosts" >&2
-    rm -f "$temp_file"
-    return 1
-   fi
- fi
- rm -f "$temp_file"
-
- echo -e "\n\nINFO: Creating Gitlab certificates"
- printf "$gitlab_fqdn\n\nUS\nMaryland\nAPG\nFII\n3650\nsilkwave\n" | ./server-cert-gen.sh /mission-share/podman/containers/keys/gitlab/
- echo "GITLAB_DOMAIN=$gitlab_fqdn" > /mission-share/podman/containers/keys/gitlab/GITLAB_DOMAIN
- podman unshare chmod 0644 /mission-share/podman/containers/keys/gitlab/GITLAB_DOMAIN
- #dont rename gitlab certs, instead just move them
- #if rename_ssl "$gitlab_fqdn" "/mission-share/podman/containers/keys/gitlab/"; then
-
- if podman unshare chmod 0644 /mission-share/podman/containers/keys/gitlab/*; then
- echo "SUCCESS: Gitlab certificates created and renamed"
- else
- echo "ERROR: Failed to create or chmod gitlab certificates" >&2
- return 1
- fi
-
- cd "$OLDPWD"
- echo "SUCCESS: SSL certificate generation completed"
-
-}
 
 generate_ssl_keys() {
  cd /mission-share/vast-ca/
@@ -1119,17 +1022,6 @@ pull_container_images() {
  return 1
  fi
 
-
- # Pull and tag Gitlab-CE
- echo "INFO: Downloading Gitlab-ce version ${GITLAB_VERSION}"
- if podman pull docker.io/gitlab/gitlab-ce:${GITLAB_VERSION} && \
- podman image tag gitlab-ce:${GITLAB_VERSION} gitlab-ce-custom:${GITLAB_VERSION}; then
- echo "SUCCESS: Gitlab-ce image pulled and tagged"
- else
- echo "ERROR: Failed to pull or tag Gitlab-ce image" >&2
- return 1
- fi
-
  echo "INFO: Listing custom images"
  podman images | egrep "custom|TAG"
  echo "SUCCESS: Image download process completed"
@@ -1417,213 +1309,6 @@ get_ip_addresses() {
     ip addr show | grep 'inet ' | awk '{print $2}' | cut -d'/' -f1 | grep -v '^127\.' | sort -u
 }
 
-#!/bin/bash
-
-build_and_start_pod_gitlab() {
-    echo "INFO: Building and starting Gitlab pod"
-
-    echo "INFO: Stopping Gitlab pod if running"
-    if podman pod stop gitlab 2>/dev/null; then
-        echo "SUCCESS: Gitlab pod stopped or not running"
-    else
-        echo "INFO: No Gitlab pod was running or stop command ignored"
-    fi
-
-# follow up, may not be needed anymore
-#    echo "INFO: Setting permissions on Gitlab directories"
-#    if podman unshare chmod -v 0777 /mission-share/podman/containers/gitlab && \
-#       podman unshare chmod -v 0777 /mission-share/podman/containers/gitlab/{config,logs,data}; then
-#        echo "SUCCESS: Gitlab directory permissions set"
-#    else
-#        echo "ERROR: Failed to set Gitlab directory permissions" >&2
-#        return 1
-#    fi
-
-    podmanshare="/mission-share/podman"
-    echo "INFO: Setting SELinux context for $podmanshare"
-    if run_with_sudo chcon -t container_file_t -R $podmanshare; then
-        echo "SUCCESS: SELinux context set for $podmanshare"
-    else
-        echo "ERROR: Failed to set SELinux context for $podmanshare"
-        return 1
-    fi
-
-    if run_with_sudo restorecon -R $podmanshare; then
-        echo "SUCCESS: SELinux restored context for $podmanshare"
-    else
-        echo "ERROR: Failed to set SELinux context for $podmanshare"
-        return 1
-    fi
-
-    # Set vm overcommit for redis in sysctl
-    echo "INFO: Setting vm.overcommit_memory for redis"
-    if run_with_sudo sysctl vm.overcommit_memory=1 && \
-       echo "$SUDO_PASSWORD" | sudo -S sh -c "echo 'vm.overcommit_memory=1' > /etc/sysctl.d/99-redis.conf" 2>/dev/null; then
-        echo "SUCCESS: Set vm.overcommit_memory and updated /etc/sysctl.d/99-redis.conf"
-    else
-        echo "ERROR: Failed to set vm.overcommit_memory or update /etc/sysctl.d/99-redis.conf" >&2
-        return 1
-    fi
-
-    # Load versions
-    echo "INFO: Loading versions from versions.txt"
-    if . versions.txt; then
-        echo "SUCCESS: Versions loaded"
-    else
-        echo "ERROR: Failed to load versions.txt" >&2
-        return 1
-    fi
-
-    gitlab_admin_password_escaped=$(echo "$GITLAB_ADMIN_PW" | sed -e 's/[\/&]/\\&/g')
-
-
-    # Get list of unique IP addresses
-    mapfile -t ip_list < <(get_ip_addresses)
-
-    # Check if any IP addresses were found
-    if [ ${#ip_list[@]} -eq 0 ]; then
-        echo "ERROR: No valid IP addresses found on this system."
-        exit 1
-    fi
-
-    # Display menu
-    echo "Select IP for Gitlab to bind to"
-    echo "Available IP addresses:"
-    for i in "${!ip_list[@]}"; do
-        echo "$((i+1)). ${ip_list[i]}"
-    done
-    echo "$(( ${#ip_list[@]} + 1 )). Enter a custom IP address ( use 0.0.0.0 for all addresses )"
-
-    # Prompt for selection
-    while true; do
-        echo -n "Please select an option (1-$(( ${#ip_list[@]} + 1 ))): "
-        read -r choice
-
-        # Validate choice is a number
-        if ! [[ "$choice" =~ ^[0-9]+$ ]]; then
-            echo "ERROR: Please enter a valid number."
-            continue
-        fi
-
-        # Check if choice is within range
-        if [ "$choice" -ge 1 ] && [ "$choice" -le "${#ip_list[@]}" ]; then
-            IP_ADDRESS="${ip_list[$((choice-1))]}"
-            echo "INFO: You selected IP address: $IP_ADDRESS"
-            break
-        elif [ "$choice" -eq $(( ${#ip_list[@]} + 1 )) ]; then
-            echo -n "INFO: Please enter a custom IP address: "
-            read -r IP_ADDRESS
-            if validate_ip "$IP_ADDRESS"; then
-                echo "INFO: You entered: $IP_ADDRESS"
-                break
-            else
-                echo "ERROR: Invalid IP address format. Please try again."
-            fi
-        else
-            echo "ERROR: Invalid option. Please select a number between 1 and $(( ${#ip_list[@]} + 1 ))."
-        fi
-    done
-
-    # Use $IP_ADDRESS in the rest of your script
-    echo "Proceeding with IP address: $IP_ADDRESS"
-
-
-    # Generate and deploy pod YAML
-    echo "INFO: Generating new GitLab pod YAML from template"
-    cd gitlab-pod || { echo "ERROR: Failed to change to gitlab-pod directory" >&2; return 1; }
-    echo "substituting values in template file"
-    if cat gitlab-pod.yml.template | \
-       sed "s|IP_ADDRESS|$IP_ADDRESS|g" | \
-       sed "s|GITLAB_DOMAIN|$GITLAB_DOMAIN_FQDN|g" | \
-       sed "s|GITLAB_ADMIN_USERNAME|$GITLAB_ADMIN_USERNAME|g" | \
-       sed "s|GITLAB_ADMIN_EMAIL|$GITLAB_ADMIN_EMAIL|g" | \
-       sed "s|GITLAB_ADMIN_PW|$gitlab_admin_password_escaped|g" | \
-       sed "s|GITLAB_VERSION|$GITLAB_VERSION|g" | \
-       sed "s|host: 'LDAP_HOST'|host: '$LDAP_SERVER'|" | \
-       sed "s|bind_dn: 'LDAP_BIND_DN'|bind_dn: '$LDAP_BIND_USER_VALUE'|" | \
-       sed "s|password: 'LDAP_PASSWORD'|password: '$LDAP_BIND_PASSWORD_VALUE'|" | \
-       sed "s|base: 'LDAP_BASE'|base: '$LDAP_SEARCH_BASE'|" > gitlab-pod.yml; then
-        echo "SUCCESS: Generated Gitlab pod YAML"
-    else
-        echo "ERROR: Failed to generate Gitlab pod YAML" >&2
-        return 1
-    fi
-
-    echo "INFO: Creating Systemd directories"
-    if mkdir -p ~/.config/containers/systemd ~/.config/systemd/user; then
-        echo "SUCCESS: Systemd directories created"
-    else
-        echo "ERROR: Failed to create Systemd directories" >&2
-        return 1
-    fi
-
-    # Copy pod yaml file
-    echo "INFO: Copying Service file"
-    if podman unshare cp -f gitlab-pod.yml /mission-share/podman/containers/gitlab-pod.yml; then
-        echo "SUCCESS: pod yml file copied"
-    else
-        echo "ERROR: Failed to copy pod yml file" >&2
-        return 1
-    fi
-
-    echo "INFO: Starting initial Gitlab pod"
-    if podman kube play --replace /mission-share/podman/containers/gitlab-pod.yml; then
-        echo "SUCCESS: Initial Gitlab pod started"
-    else
-        echo "ERROR: Failed to start initial Gitlab pod" >&2
-        return 1
-    fi
-
-    echo "INFO: Generating systemd service files for Gitlab pod"
-    if podman generate systemd --name --files gitlab && \
-       mv -fv *.service ~/.config/systemd/user/; then
-        echo "SUCCESS: Systemd service files generated and moved"
-    else
-        echo "ERROR: Failed to generate or move systemd service files" >&2
-        return 1
-    fi
-
-    echo "INFO: Reloading systemd user daemon"
-    if systemctl --user daemon-reload; then
-        echo "SUCCESS: Systemd user daemon reloaded"
-    else
-        echo "ERROR: Failed to reload systemd user daemon" >&2
-        return 1
-    fi
-
-    echo "INFO: Stopping existing Gitlab pod if running - so we can start it with systemctl"
-    if podman pod stop gitlab 2>/dev/null; then
-        echo "SUCCESS: Existing Gitlab pod stopped or not running"
-    else
-        echo "INFO: No Gitlab pod was running or stop command ignored"
-    fi
-
-    echo "INFO: Enabling and starting pod-gitlab.service"
-    if systemctl --user enable --now pod-gitlab.service; then
-        echo "SUCCESS: pod-gitlab.service enabled and started"
-    else
-        echo "ERROR: Failed to enable or start pod-gitlab.service" >&2
-        return 1
-    fi
-
-    sleep 3
-    echo "INFO: Listing all containers"
-    podman ps -a -p
-    echo "SUCCESS: Gitlab pod created and started"
-
-
-    echo "INFO: Enabling linger for user $USER"
-    if loginctl enable-linger; then
-        echo "SUCCESS: Linger enabled for user $USER"
-    else
-        echo "ERROR: Failed to enable linger for user $USER" >&2
-        return 1
-    fi
-
-    echo "SUCCESS: Gitlab pod deployment completed"
-    echo "INFO: Gitlab available on ports 2200, 9443, 8088"
-    cd "$OLDPWD"
-}
 
 
 build_and_start_pod() {
@@ -1678,7 +1363,6 @@ build_and_start_pod() {
        sed "s|GRAFANA_VERSION|$GRAFANA_VERSION|g" | \
        sed "s|LOKI_VERSION|$LOKI_VERSION|g" | \
        sed "s|MIMIR_VERSION|$MIMIR_VERSION|g" | \
-       sed "s|GITLAB_VERSION|$GITLAB_VERSION|g" | \
        sed "s|LDAP_BIND_PASSWD_VALUE|$LDAP_BIND_PASSWORD_VALUE|g" | \
        sed "s|GRAFANA_ADMIN_USERNAME|$GRAFANA_ADMIN_USERNAME|g" | \
        sed "s|GRAFANA_ADMIN_PW|$GRAFANA_ADMIN_PW|g" | \
@@ -2177,11 +1861,6 @@ check_vars_file() {
         export LISTEN_IP_ADDRESS
         export LDAP_BIND_USER_VALUE
         export LDAP_BIND_PASSWORD_VALUE
-        #gitlab stuff
-        export GITLAB_DOMAIN_FQDN
-        export GITLAB_ADMIN_USERNAME
-        export GITLAB_ADMIN_PW
-        export GITLAB_ADMIN_EMAIL
         #grafana stuff
         export GRAFANA_DOMAIN_FQDN
         export GRAFANA_ADMIN_USERNAME
@@ -2208,7 +1887,6 @@ show_menu() {
     echo " 2)  Provision Disk for Podman Data"
     echo " 3)  Copy container source directories"
     echo " 4)  Generate SSL Certificates - GLAM packages"
-    echo " 4g) Generate SSL Certificates - GitLab"
     echo " 5)  Install and Configure Nginx Proxy"
     echo " 6)  Configure Firewall"
     echo ""
@@ -2219,16 +1897,14 @@ show_menu() {
     echo ""
     echo "========================Pod Options====================================="
     echo " 9)  Build and Start (graf,loki,mimir) Pod"
-    echo " 9g) Build and Start Gitlab Pod"
     echo ""
     echo " q)  Exit"
     echo ""
     echo "===================== Un-Install Options ==============================="
     echo " u1)  Stop and Delete OGS (glam) pod"
-    echo " u2)  Stop and Delete GITLAB pod"
-    echo " u3)  Runs u1, u2, and completely clear out all PODS, containers, keys, files and images on /mission-share"
+    echo " u2)  Runs u1, u2, and completely clear out all PODS, containers, keys, files and images on /mission-share"
     echo "       -- takes /mission-share back to empty state"
-    echo " u4)  Remove Customized Firewall rules"
+    echo " u3)  Remove Customized Firewall rules"
 }
 
 
@@ -2284,13 +1960,11 @@ while true; do
         2) provision_disk ;;
         3) copy_source_directories ;;
         4) generate_ssl_keys ;;
-        4g) generate_ssl_keys_gitlab ;;
         5) install_nginx ;;
         6) configure_firewall ;;
         7) pull_container_images ;;
         8) install_tarball_images ;;
         9) build_and_start_pod ;;
-        9g) build_and_start_pod_gitlab ;;
         u1)
             if stop_and_delete_pod "ogs"; then
                 echo "SUCCESS: Stopped and deleted pod 'ogs'"
@@ -2304,29 +1978,6 @@ while true; do
             fi
             ;;
         u2)
-            if stop_and_delete_pod "gitlab"; then
-                echo "SUCCESS: Stopped and deleted pod 'gitlab'"
-            else
-                echo "ERROR: Failed to stop and delete pod 'gitlab'" >&2
-            fi
-            if cleanup_pod_services "gitlab"; then
-                echo "SUCCESS: Cleaned up services for pod 'gitlab'"
-            else
-                echo "ERROR: Failed to clean up services for pod 'gitlab'" >&2
-            fi
-            ;;
-        u3)
-            if podman pod exists gitlab; then
-                echo "Removing pod 'gitlab'"
-                stop_and_delete_pod_auto "gitlab"
-                if cleanup_pod_services "gitlab"; then
-                    echo "SUCCESS: Cleaned up services for pod 'gitlab'"
-                else
-                    echo "ERROR: Failed to clean up services for pod 'gitlab'" >&2
-                fi
-            else
-                echo "pod gitlab not found, skipping" >&2
-            fi
             if podman pod exists ogs; then
                 echo "Removing pod 'ogs'"
                 stop_and_delete_pod_auto "ogs"
@@ -2344,7 +1995,7 @@ while true; do
             #run podman reset again, to rebuild silently the needed file structure for container images
             podman system reset -f >/dev/null 2>&1
             ;;
-        u4) empty_firewall_rules ;;
+        u3) empty_firewall_rules ;;
         q)
             echo "INFO: Exiting. Have a nice day!"
             exit 0
