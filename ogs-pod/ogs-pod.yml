@@ -58,13 +58,13 @@ spec:
           value: "true"
 
         - name: LDAP_BIND_PASSWORD
-          value: default_PASSWORD_8675309
+          value: changeme
 
         - name: GF_SECURITY_ADMIN_USER
           value: admin
 
         - name: GF_SECURITY_ADMIN_PASSWORD
-          value: default_PASSWORD_8675309
+          value: changeme
 
 
 

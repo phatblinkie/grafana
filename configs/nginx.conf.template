@@ -56,7 +56,7 @@ http {
         server_name _;
         ssl_certificate     /etc/pki/tls/ssl.crt;
         ssl_certificate_key /etc/pki/tls/ssl.key;
-        
+
         #used for installing allow rpms and exe by ansible
         location /rpms {
             root /usr/share/nginx/html;
