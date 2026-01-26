@@ -61,7 +61,7 @@ http {
         location /rpms {
             root /usr/share/nginx/html;
         }
-        return 444;                 # Drop unmatched traffic
+        #return 444;                 # Drop unmatched traffic
     }
     # -------------------------------------------------------------------------
     #  Reverse Proxy for Grafana  (internal only)
