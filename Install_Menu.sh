@@ -1,5 +1,5 @@
 
-script_version="20260119.0"
+script_version="20260224.0"
 
 if (( $EUID == 0 )); then
     echo "ERROR: This script must not be run as root, run as normal user that will manage the containers. 'miadmin?'" 1>&2; exit 1;
