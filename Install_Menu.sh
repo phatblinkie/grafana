@@ -682,7 +682,7 @@ provision_disk ()
                     sleep 2;
                     echo "INFO: Creating mount point /mission-share";
                     run_with_sudo mkdir -p /mission-share;
-                    run_with_sudo chmod 1777 /mission-share;
+                    run_with_sudo chmod 0777 /mission-share;
                     echo "INFO: Mounting $selected_disk to /mission-share";
                     if run_with_sudo mount "$selected_disk" /mission-share; then
                         echo "SUCCESS: Mounted $selected_disk to /mission-share";
@@ -690,14 +690,14 @@ provision_disk ()
                         echo "ERROR: Failed to mount $selected_disk to /mission-share" 1>&2;
                         return 1;
                     fi;
-                    run_with_sudo chmod 1777 /mission-share;
+                    run_with_sudo chmod 0777 /mission-share;
                     echo "INFO: Setting SELinux context for /mission-share";
                     run_with_sudo semanage fcontext -a -t container_file_t "/mission-share(/.*)?";
                     run_with_sudo restorecon -Rv /mission-share;
                     echo "SUCCESS: SELinux context set for /mission-share";
                     echo "INFO: Creating upload directory";
                     mkdir -p /mission-share/upload;
-                    chmod 1777 /mission-share/upload;
+                    chmod 0777 /mission-share/upload;
                     echo "SUCCESS: Upload directory created";
                     echo "INFO: Initializing podman storage directories";
                     podman info > /dev/null;
@@ -1135,7 +1135,7 @@ copy_source_directories ()
     fi;
 
     echo "INFO: Setting permissions on mimir directories"
-    if run_with_sudo chmod 1777 /mission-share/podman/containers/mimir; then
+    if run_with_sudo chmod 0777 /mission-share/podman/containers/mimir; then
         echo "SUCCESS: mimir directory permissions set"
     else
         echo "ERROR: Failed to set mimir directory permissions" >&2
